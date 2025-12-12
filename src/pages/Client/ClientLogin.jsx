@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Phone, Mail, MapPin, Lock, ArrowRight, LogIn } from 'lucide-react';
+import { User, Phone, Mail, MapPin, Lock, ArrowRight, LogIn, AlertCircle } from 'lucide-react';
 
 const ClientLogin = () => {
     const [isRegistering, setIsRegistering] = useState(false);
@@ -94,42 +94,58 @@ const ClientLogin = () => {
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-pink-50 via-white to-yellow-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
-                {/* Header */}
-                <div className="bg-gradient-to-r from-pink-500 to-pink-600 p-6 text-white text-center">
-                    <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                        {isRegistering ? <User size={32} /> : <LogIn size={32} />}
+        <div className="min-h-screen relative overflow-hidden flex items-center justify-center p-4">
+            {/* Animated Background - Pink to Brown */}
+            <div className="absolute inset-0 bg-gradient-to-br from-pink-500 via-pink-400 to-amber-800"></div>
+
+            {/* Decorative Elements */}
+            <div className="absolute top-0 left-0 w-96 h-96 bg-white/10 rounded-full blur-3xl animate-pulse"></div>
+            <div className="absolute bottom-0 right-0 w-96 h-96 bg-amber-900/20 rounded-full blur-3xl animate-pulse delay-1000"></div>
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-pink-300/10 rounded-full blur-3xl"></div>
+
+            {/* Login Card */}
+            <div className="relative z-10 bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-white/20">
+                {/* Header with Gradient - Pink to Brown */}
+                <div className="relative bg-gradient-to-r from-pink-600 via-pink-500 to-amber-800 p-8 text-white text-center overflow-hidden">
+                    {/* Decorative circles */}
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16"></div>
+                    <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/10 rounded-full -ml-12 -mb-12"></div>
+
+                    <div className="relative z-10">
+                        <div className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-white/30 shadow-lg">
+                            {isRegistering ? <User size={36} strokeWidth={2.5} /> : <LogIn size={36} strokeWidth={2.5} />}
+                        </div>
+                        <h1 className="text-3xl font-bold mb-2 drop-shadow-lg">
+                            {isRegistering ? 'Créer un compte' : 'Connexion'}
+                        </h1>
+                        <p className="text-pink-50 text-sm">
+                            {isRegistering
+                                ? 'Rejoignez KatGlamour et réservez facilement'
+                                : 'Accédez à votre espace personnel'}
+                        </p>
                     </div>
-                    <h1 className="text-2xl font-bold mb-2">
-                        {isRegistering ? 'Créer un compte' : 'Connexion Client'}
-                    </h1>
-                    <p className="text-pink-100 text-sm">
-                        {isRegistering
-                            ? 'Inscrivez-vous pour réserver vos rendez-vous'
-                            : 'Accédez à votre espace de réservation'}
-                    </p>
                 </div>
 
                 {/* Form */}
-                <form onSubmit={isRegistering ? handleRegister : handleLogin} className="p-6 space-y-4">
+                <form onSubmit={isRegistering ? handleRegister : handleLogin} className="p-8 space-y-5">
                     {error && (
-                        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-                            {error}
+                        <div className="bg-red-50 border-l-4 border-red-500 text-red-700 px-4 py-3 rounded-lg text-sm flex items-start gap-2 animate-in slide-in-from-top">
+                            <AlertCircle size={18} className="flex-shrink-0 mt-0.5" />
+                            <span>{error}</span>
                         </div>
                     )}
 
                     {/* Name */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <div className="space-y-2">
+                        <label className="block text-sm font-semibold text-gray-700">
                             Nom complet <span className="text-red-500">*</span>
                         </label>
-                        <div className="relative">
-                            <User size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <div className="relative group">
+                            <User size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-pink-500 transition" />
                             <input
                                 type="text"
-                                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 outline-none"
-                                placeholder="Votre nom"
+                                className="w-full pl-12 pr-4 py-3.5 border-2 border-gray-200 rounded-xl focus:border-pink-500 focus:ring-4 focus:ring-pink-100 outline-none transition bg-gray-50 focus:bg-white"
+                                placeholder="Votre nom complet"
                                 value={formData.name}
                                 onChange={(e) => handleInputChange('name', e.target.value)}
                                 required
@@ -138,15 +154,15 @@ const ClientLogin = () => {
                     </div>
 
                     {/* Phone */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <div className="space-y-2">
+                        <label className="block text-sm font-semibold text-gray-700">
                             Numéro de téléphone <span className="text-red-500">*</span>
                         </label>
-                        <div className="relative">
-                            <Phone size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <div className="relative group">
+                            <Phone size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-pink-500 transition" />
                             <input
                                 type="tel"
-                                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 outline-none"
+                                className="w-full pl-12 pr-4 py-3.5 border-2 border-gray-200 rounded-xl focus:border-pink-500 focus:ring-4 focus:ring-pink-100 outline-none transition bg-gray-50 focus:bg-white"
                                 placeholder="+243 XXX XXX XXX"
                                 value={formData.phone}
                                 onChange={(e) => handleInputChange('phone', e.target.value)}
@@ -157,17 +173,17 @@ const ClientLogin = () => {
 
                     {/* Registration-only fields */}
                     {isRegistering && (
-                        <>
+                        <div className="space-y-5 animate-in slide-in-from-top">
                             {/* Email */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                            <div className="space-y-2">
+                                <label className="block text-sm font-semibold text-gray-700">
                                     Email <span className="text-red-500">*</span>
                                 </label>
-                                <div className="relative">
-                                    <Mail size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                <div className="relative group">
+                                    <Mail size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-pink-500 transition" />
                                     <input
                                         type="email"
-                                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 outline-none"
+                                        className="w-full pl-12 pr-4 py-3.5 border-2 border-gray-200 rounded-xl focus:border-pink-500 focus:ring-4 focus:ring-pink-100 outline-none transition bg-gray-50 focus:bg-white"
                                         placeholder="votre@email.com"
                                         value={formData.email}
                                         onChange={(e) => handleInputChange('email', e.target.value)}
@@ -177,15 +193,15 @@ const ClientLogin = () => {
                             </div>
 
                             {/* Address */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                            <div className="space-y-2">
+                                <label className="block text-sm font-semibold text-gray-700">
                                     Adresse <span className="text-red-500">*</span>
                                 </label>
-                                <div className="relative">
-                                    <MapPin size={18} className="absolute left-3 top-3 text-gray-400" />
+                                <div className="relative group">
+                                    <MapPin size={18} className="absolute left-4 top-4 text-gray-400 group-focus-within:text-pink-500 transition" />
                                     <textarea
                                         rows="2"
-                                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 outline-none resize-none"
+                                        className="w-full pl-12 pr-4 py-3.5 border-2 border-gray-200 rounded-xl focus:border-pink-500 focus:ring-4 focus:ring-pink-100 outline-none resize-none transition bg-gray-50 focus:bg-white"
                                         placeholder="Votre adresse complète"
                                         value={formData.address}
                                         onChange={(e) => handleInputChange('address', e.target.value)}
@@ -195,25 +211,25 @@ const ClientLogin = () => {
                             </div>
 
                             {/* Preferences */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                            <div className="space-y-2">
+                                <label className="block text-sm font-semibold text-gray-700">
                                     Préférences / Notes (optionnel)
                                 </label>
                                 <textarea
                                     rows="2"
-                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 outline-none resize-none"
+                                    className="w-full px-4 py-3.5 border-2 border-gray-200 rounded-xl focus:border-pink-500 focus:ring-4 focus:ring-pink-100 outline-none resize-none transition bg-gray-50 focus:bg-white"
                                     placeholder="Allergies, préférences de style, etc."
                                     value={formData.preferences}
                                     onChange={(e) => handleInputChange('preferences', e.target.value)}
                                 />
                             </div>
-                        </>
+                        </div>
                     )}
 
                     {/* Submit Button */}
                     <button
                         type="submit"
-                        className="w-full bg-gradient-to-r from-pink-500 to-pink-600 text-white font-semibold py-3 rounded-lg hover:from-pink-600 hover:to-pink-700 transition flex items-center justify-center gap-2 shadow-lg"
+                        className="w-full bg-gradient-to-r from-pink-500 to-pink-600 hover:from-pink-600 hover:to-pink-700 text-white font-bold py-4 rounded-xl transition-all transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg shadow-pink-500/30"
                     >
                         {isRegistering ? (
                             <>
@@ -235,11 +251,11 @@ const ClientLogin = () => {
                                 setError('');
                                 setFormData({ name: '', phone: '', email: '', address: '', preferences: '' });
                             }}
-                            className="text-pink-600 hover:text-pink-700 font-medium text-sm"
+                            className="text-pink-600 hover:text-pink-700 font-semibold text-sm transition hover:underline"
                         >
                             {isRegistering
-                                ? 'Déjà inscrit ? Se connecter'
-                                : "Pas encore inscrit ? S'inscrire"}
+                                ? '← Déjà inscrit ? Se connecter'
+                                : "Pas encore inscrit ? S'inscrire →"}
                         </button>
                     </div>
 
@@ -248,7 +264,7 @@ const ClientLogin = () => {
                         <button
                             type="button"
                             onClick={() => navigate('/')}
-                            className="text-gray-500 hover:text-gray-700 text-sm"
+                            className="text-gray-500 hover:text-gray-700 text-sm transition hover:underline"
                         >
                             ← Retour au site
                         </button>

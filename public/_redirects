@@ -1,0 +1,6 @@
+# Netlify Redirects Configuration
+# This file handles client-side routing for the React application
+
+# Redirect all routes to index.html for client-side routing
+# This ensures that React Router can handle all navigation
+/*    /index.html   200

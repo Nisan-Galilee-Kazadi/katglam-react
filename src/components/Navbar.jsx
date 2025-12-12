@@ -57,7 +57,7 @@ const Navbar = () => {
                         </div>
 
                         <NavLink
-                            to="/contact"
+                            to="/client/login"
                             className={`px-6 py-2 rounded-full font-semibold transition-all shadow-lg ${scrolled
                                 ? 'bg-pink-500 text-white hover:bg-pink-600'
                                 : 'bg-white text-pink-500 hover:bg-pink-50'
@@ -80,20 +80,58 @@ const Navbar = () => {
                 </div>
             </div>
 
-            {/* Mobile Menu Overlay */}
+            {/* Mobile Sidebar Overlay */}
             <div
-                className={`md:hidden absolute top-full left-0 w-full bg-white shadow-lg transition-all duration-300 overflow-hidden ${isOpen ? 'max-h-screen py-6 border-t border-gray-100' : 'max-h-0'
+                className={`md:hidden fixed inset-0 bg-black/50 z-40 transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                    }`}
+                onClick={() => setIsOpen(false)}
+            ></div>
+
+            {/* Mobile Sidebar */}
+            <div
+                className={`md:hidden fixed top-0 left-0 h-full w-72 bg-white shadow-2xl z-50 transform transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full'
                     }`}
             >
-                <div className="flex flex-col items-center space-y-6">
-                    <NavLinks mobile />
-                    <div className="flex gap-6 mt-4 pt-4 border-t border-gray-100 w-full justify-center items-center">
-                        <SocialIcon Icon={Instagram} href="https://www.instagram.com/kat_glamour_?igsh=MWlxYzc2bW8xdTI1eA==" scrolled={true} color="text-pink-500" />
-                        <SocialIcon Icon={Facebook} href="https://www.facebook.com/profile.php?id=100088676958695" scrolled={true} color="text-blue-600" />
-                        <SocialIcon Icon={Phone} href="https://wa.me/243827433351" scrolled={true} color="text-green-500" />
-                        <a href="https://vm.tiktok.com/ZMSne9RYv/" target="_blank" rel="noopener noreferrer" className="text-gray-600 hover:text-black transition-colors duration-300">
-                            <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z" /></svg>
-                        </a>
+                <div className="flex flex-col h-full">
+                    {/* Sidebar Header */}
+                    <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-pink-500 to-pink-600">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <img src="/Images/logo1.jpg" alt="Logo" className="h-10 w-10 rounded-full object-cover border-2 border-white" />
+                                <div className="flex flex-col">
+                                    <span className="font-serif font-bold text-xl text-white leading-none">
+                                        <span className="text-yellow-200">K</span>at<span className="text-yellow-200">G</span>lamour
+                                    </span>
+                                    <span className="text-[10px] uppercase tracking-widest text-pink-100">Makeup Artist</span>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setIsOpen(false)}
+                                className="text-white hover:bg-white/10 p-2 rounded-lg transition"
+                            >
+                                <X size={24} />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Sidebar Navigation */}
+                    <nav className="flex-1 overflow-y-auto py-6">
+                        <div className="flex flex-col space-y-2 px-4">
+                            <NavLinks mobile />
+                        </div>
+                    </nav>
+
+                    {/* Sidebar Footer - Social Icons */}
+                    <div className="p-6 border-t border-gray-100 bg-gray-50">
+                        <p className="text-xs text-gray-500 uppercase tracking-wider mb-3 font-semibold">Suivez-nous</p>
+                        <div className="flex gap-4 justify-center">
+                            <SocialIcon Icon={Instagram} href="https://www.instagram.com/kat_glamour_?igsh=MWlxYzc2bW8xdTI1eA==" scrolled={true} color="text-pink-500" />
+                            <SocialIcon Icon={Facebook} href="https://www.facebook.com/profile.php?id=100088676958695" scrolled={true} color="text-blue-600" />
+                            <SocialIcon Icon={Phone} href="https://wa.me/243827433351" scrolled={true} color="text-green-500" />
+                            <a href="https://vm.tiktok.com/ZMSne9RYv/" target="_blank" rel="noopener noreferrer" className="text-gray-600 hover:text-black transition-colors duration-300">
+                                <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z" /></svg>
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -103,7 +141,7 @@ const Navbar = () => {
 
 const NavLinks = ({ scrolled, mobile }) => {
     const baseClass = mobile
-        ? "text-xl font-medium text-gray-800 hover:text-pink-500 transition-colors"
+        ? "w-full text-left px-4 py-3 font-medium text-gray-700 hover:bg-pink-50 hover:text-pink-600 rounded-lg transition-all"
         : `font-medium transition-colors hover:text-pink-400 ${scrolled ? 'text-gray-600' : 'text-white/90'}`; // White text on transparent, Gray on scrolled
 
     const links = [
@@ -121,7 +159,7 @@ const NavLinks = ({ scrolled, mobile }) => {
                     key={link.name}
                     to={link.path}
                     className={({ isActive }) =>
-                        `${baseClass} ${isActive && !mobile ? 'text-pink-500 font-bold' : ''} ${isActive && mobile ? 'text-pink-600' : ''}`
+                        `${baseClass} ${isActive && !mobile ? 'text-pink-500 font-bold' : ''} ${isActive && mobile ? 'bg-pink-100 text-pink-600 font-semibold' : ''}`
                     }
                 >
                     {link.name}

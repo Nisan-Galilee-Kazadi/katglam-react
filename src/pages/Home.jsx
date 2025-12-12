@@ -13,7 +13,7 @@ const Home = () => {
                 ></div>
                 <div className="absolute inset-0 bg-gradient-to-b from-warm-black/50 via-warm-black/20 to-pink-900/40"></div>
 
-                <div className="relative z-10 text-center text-white px-4 max-w-4xl mx-auto">
+                <div className="relative z-10 text-center text-white px-4 max-w-4xl mx-auto pt-16 md:pt-0">
                     <div className="mb-4 inline-block px-4 py-1 border border-white/30 rounded-full backdrop-blur-sm animate-fade-in-up">
                         <span className="uppercase tracking-widest text-sm font-medium">Beauty & Event Artist</span>
                     </div>

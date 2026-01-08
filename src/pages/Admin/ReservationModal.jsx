@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { X, Plus, Trash, User, Phone, Mail, MapPin, Clock, Palette, StickyNote, ArrowRight, ArrowLeft, Check, Lock, Loader2 } from 'lucide-react';
+import { X, Plus, Trash, User, Phone, Mail, MapPin, Clock, Palette, StickyNote, ArrowRight, ArrowLeft, Check, Lock, Loader2, Search } from 'lucide-react';
 import { CALENDAR_CONFIG } from './CalendarConfig';
+import axios from 'axios';
 
 const ReservationModal = ({ date, reservations = [], onClose, onAddReservation, onDeleteReservation, onLockDate, isLocked }) => {
     const [showForm, setShowForm] = useState(false);
@@ -18,12 +19,32 @@ const ReservationModal = ({ date, reservations = [], onClose, onAddReservation, 
     });
     const [errors, setErrors] = useState({});
 
+    // Client selection states
+    const [isNewClient, setIsNewClient] = useState(true);
+    const [allClients, setAllClients] = useState([]);
+    const [clientSearch, setClientSearch] = useState('');
+    const [showClientList, setShowClientList] = useState(false);
+
     // Reset when modal opens/date changes
     useEffect(() => {
-        setShowForm(false);
-        setStep(1);
-        setFormData({ clientName: '', phone: '', email: '', address: '', timeSlot: '', service: '', notes: '' });
-        setErrors({});
+        const fetchClients = async () => {
+            try {
+                const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/users`);
+                setAllClients(response.data);
+            } catch (error) {
+                console.error('Error fetching clients for modal:', error);
+            }
+        };
+
+        if (date) {
+            fetchClients();
+            setShowForm(false);
+            setStep(1);
+            setIsNewClient(true);
+            setClientSearch('');
+            setFormData({ clientName: '', phone: '', email: '', address: '', timeSlot: '', service: '', notes: '' });
+            setErrors({});
+        }
     }, [date]);
 
     const handleInputChange = (field, value) => {
@@ -39,10 +60,11 @@ const ReservationModal = ({ date, reservations = [], onClose, onAddReservation, 
         if (!formData.clientName.trim()) newErrors.clientName = "Le nom est requis";
         if (!formData.phone.trim()) newErrors.phone = "Le téléphone est requis";
 
-        if (!formData.email.trim()) newErrors.email = "L'email est requis";
-        else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) newErrors.email = "Email invalide";
-
-        if (!formData.address.trim()) newErrors.address = "L'adresse est requise";
+        if (isNewClient) {
+            if (!formData.email.trim()) newErrors.email = "L'email est requis";
+            else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) newErrors.email = "Email invalide";
+            if (!formData.address.trim()) newErrors.address = "L'adresse est requise";
+        }
 
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
@@ -63,11 +85,53 @@ const ReservationModal = ({ date, reservations = [], onClose, onAddReservation, 
         }
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
         if (validateStep2()) {
-            onAddReservation({ ...formData, date: date, id: Date.now() });
-            setShowForm(false);
+            const newReservation = {
+                ...formData,
+                date: date.toISOString(),
+                status: 'confirmed',
+                clientName: formData.clientName,
+                clientPhone: formData.phone,
+                clientEmail: formData.email,
+                address: formData.address,
+                isNewClientManual: isNewClient // Track if we should create a new user record on serve side (optional if handled here)
+            };
+
+            try {
+                // If it's a new client, we first create the client record
+                let clientId = formData.clientId;
+                if (isNewClient) {
+                    const clientResponse = await axios.post(`${import.meta.env.VITE_API_URL}/api/users`, {
+                        name: formData.clientName,
+                        phone: formData.phone,
+                        email: formData.email,
+                        address: formData.address
+                    });
+                    clientId = clientResponse.data._id;
+                }
+
+                const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/reservations`, {
+                    ...newReservation,
+                    clientId
+                });
+                onAddReservation(response.data);
+                setShowForm(false);
+            } catch (error) {
+                console.error('Erreur lors de l\'ajout de la réservation :', error);
+                const msg = error.response?.data?.message || 'Une erreur est survenue.';
+                setErrors({ global: msg });
+            }
+        }
+    };
+
+    const handleDeleteReservation = async (id) => {
+        try {
+            await axios.delete(`${import.meta.env.VITE_API_URL}/api/reservations/${id}`);
+            onDeleteReservation(id);
+        } catch (error) {
+            console.error('Erreur lors de la suppression de la réservation :', error);
         }
     };
 
@@ -107,7 +171,7 @@ const ReservationModal = ({ date, reservations = [], onClose, onAddReservation, 
                                 </div>
                             ) : (
                                 reservations.map(resa => (
-                                    <div key={resa.id} className="bg-white border-l-4 border-pink-500 shadow-sm rounded-r-lg p-4 group relative hover:shadow-md transition-all">
+                                    <div key={resa._id || resa.id} className="bg-white border-l-4 border-pink-500 shadow-sm rounded-r-lg p-4 group relative hover:shadow-md transition-all">
                                         <div className="flex justify-between items-start mb-2">
                                             <h4 className="font-semibold text-gray-800">{resa.clientName}</h4>
                                             <span className="bg-pink-100 text-pink-700 text-xs font-bold px-2 py-1 rounded-full">
@@ -126,7 +190,7 @@ const ReservationModal = ({ date, reservations = [], onClose, onAddReservation, 
                                             )}
                                         </div>
                                         <button
-                                            onClick={() => onDeleteReservation(resa.id)}
+                                            onClick={() => handleDeleteReservation(resa._id || resa.id)}
                                             className="absolute top-2 right-2 p-2 text-gray-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
                                             title="Supprimer"
                                         >
@@ -152,46 +216,114 @@ const ReservationModal = ({ date, reservations = [], onClose, onAddReservation, 
                                         <User size={20} className="text-pink-500" /> Informations Client
                                     </h4>
 
-                                    <div>
-                                        <input
-                                            placeholder="Nom complet"
-                                            className={`w-full p-2 border rounded-lg outline-none focus:ring-2 focus:ring-pink-400 ${errors.clientName ? 'border-red-500' : 'border-gray-300'}`}
-                                            value={formData.clientName}
-                                            onChange={e => handleInputChange('clientName', e.target.value)}
-                                        />
-                                        {errors.clientName && <p className="text-red-500 text-xs mt-1">{errors.clientName}</p>}
+                                    <div className="flex gap-2 p-1 bg-gray-100 rounded-lg mb-4">
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsNewClient(true)}
+                                            className={`flex-1 py-2 rounded-md transition font-medium text-sm ${isNewClient ? 'bg-white text-pink-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                        >
+                                            Nouveau Client
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsNewClient(false)}
+                                            className={`flex-1 py-2 rounded-md transition font-medium text-sm ${!isNewClient ? 'bg-white text-pink-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                        >
+                                            Client Existant
+                                        </button>
                                     </div>
 
-                                    <div>
-                                        <input
-                                            placeholder="Téléphone"
-                                            className={`w-full p-2 border rounded-lg outline-none focus:ring-2 focus:ring-pink-400 ${errors.phone ? 'border-red-500' : 'border-gray-300'}`}
-                                            value={formData.phone}
-                                            onChange={e => handleInputChange('phone', e.target.value)}
-                                        />
-                                        {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone}</p>}
-                                    </div>
+                                    {!isNewClient ? (
+                                        <div className="relative">
+                                            <div className="relative">
+                                                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                                <input
+                                                    placeholder="Rechercher un client..."
+                                                    className="w-full pl-10 p-3 border border-gray-300 rounded-xl outline-none focus:ring-2 focus:ring-pink-400"
+                                                    value={clientSearch}
+                                                    onChange={(e) => {
+                                                        setClientSearch(e.target.value);
+                                                        setShowClientList(true);
+                                                    }}
+                                                    onFocus={() => setShowClientList(true)}
+                                                />
+                                            </div>
 
-                                    <div>
-                                        <input
-                                            placeholder="Email"
-                                            type="email"
-                                            className={`w-full p-2 border rounded-lg outline-none focus:ring-2 focus:ring-pink-400 ${errors.email ? 'border-red-500' : 'border-gray-300'}`}
-                                            value={formData.email}
-                                            onChange={e => handleInputChange('email', e.target.value)}
-                                        />
-                                        {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
-                                    </div>
+                                            {showClientList && clientSearch && (
+                                                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl max-h-48 overflow-y-auto">
+                                                    {allClients
+                                                        .filter(c => c.name.toLowerCase().includes(clientSearch.toLowerCase()))
+                                                        .map(c => (
+                                                            <div
+                                                                key={c._id}
+                                                                className="p-3 hover:bg-pink-50 cursor-pointer border-b border-gray-50 last:border-0"
+                                                                onClick={() => {
+                                                                    setFormData({
+                                                                        ...formData,
+                                                                        clientName: c.name,
+                                                                        phone: c.phone,
+                                                                        email: c.email,
+                                                                        address: c.address,
+                                                                        clientId: c._id
+                                                                    });
+                                                                    setClientSearch(c.name);
+                                                                    setShowClientList(false);
+                                                                }}
+                                                            >
+                                                                <p className="font-bold text-gray-800">{c.name}</p>
+                                                                <p className="text-xs text-gray-500">{c.phone}</p>
+                                                            </div>
+                                                        ))
+                                                    }
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div>
+                                                <input
+                                                    placeholder="Nom complet"
+                                                    className={`w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-pink-400 ${errors.clientName ? 'border-red-500' : 'border-gray-300'}`}
+                                                    value={formData.clientName}
+                                                    onChange={e => handleInputChange('clientName', e.target.value)}
+                                                />
+                                                {errors.clientName && <p className="text-red-500 text-xs mt-1">{errors.clientName}</p>}
+                                            </div>
 
-                                    <div>
-                                        <input
-                                            placeholder="Adresse de prestation"
-                                            className={`w-full p-2 border rounded-lg outline-none focus:ring-2 focus:ring-pink-400 ${errors.address ? 'border-red-500' : 'border-gray-300'}`}
-                                            value={formData.address}
-                                            onChange={e => handleInputChange('address', e.target.value)}
-                                        />
-                                        {errors.address && <p className="text-red-500 text-xs mt-1">{errors.address}</p>}
-                                    </div>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div>
+                                                    <input
+                                                        placeholder="Téléphone"
+                                                        className={`w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-pink-400 ${errors.phone ? 'border-red-500' : 'border-gray-300'}`}
+                                                        value={formData.phone}
+                                                        onChange={e => handleInputChange('phone', e.target.value)}
+                                                    />
+                                                    {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone}</p>}
+                                                </div>
+
+                                                <div>
+                                                    <input
+                                                        placeholder="Email"
+                                                        type="email"
+                                                        className={`w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-pink-400 ${errors.email ? 'border-red-500' : 'border-gray-300'}`}
+                                                        value={formData.email}
+                                                        onChange={e => handleInputChange('email', e.target.value)}
+                                                    />
+                                                    {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <input
+                                                    placeholder="Adresse de prestation"
+                                                    className={`w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-pink-400 ${errors.address ? 'border-red-500' : 'border-gray-300'}`}
+                                                    value={formData.address}
+                                                    onChange={e => handleInputChange('address', e.target.value)}
+                                                />
+                                                {errors.address && <p className="text-red-500 text-xs mt-1">{errors.address}</p>}
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
                             )}
 
@@ -252,7 +384,8 @@ const ReservationModal = ({ date, reservations = [], onClose, onAddReservation, 
                                 onClick={onClose}
                                 className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-white transition"
                             >
-                                Fermer
+                                <X size={18} className="sm:hidden mx-auto" />
+                                <span className="hidden sm:inline">Fermer</span>
                             </button>
                             <button
                                 onClick={onLockDate}
@@ -260,14 +393,18 @@ const ReservationModal = ({ date, reservations = [], onClose, onAddReservation, 
                                     ${isLocked ? 'bg-red-500 hover:bg-red-600' : 'bg-gradient-to-r from-gray-400 to-gray-500 hover:from-gray-500 hover:to-gray-600'}
                                 `}
                             >
-                                {isLocked ? <><Lock size={16} /> Déverrouiller</> : <><Lock size={16} /> Verrouiller</>}
+                                {isLocked ? (
+                                    <><Lock size={16} /> <span className="hidden sm:inline">Déverrouiller</span></>
+                                ) : (
+                                    <><Lock size={16} /> <span className="hidden sm:inline">Verrouiller</span></>
+                                )}
                             </button>
                             {!isLocked && (
                                 <button
                                     onClick={() => setShowForm(true)}
                                     className="flex-1 px-4 py-2 bg-pink-500 hover:bg-pink-600 text-white rounded-lg font-medium flex items-center justify-center gap-2 transition shadow hover:shadow-lg"
                                 >
-                                    <Plus size={18} /> Nouveau
+                                    <Plus size={18} /> <span className="hidden sm:inline">Nouveau</span>
                                 </button>
                             )}
                         </>

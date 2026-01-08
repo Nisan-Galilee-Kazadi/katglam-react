@@ -10,28 +10,54 @@ const MyReservations = () => {
     const [filter, setFilter] = useState('all');
 
     useEffect(() => {
-        loadReservations();
-    }, [client.id]);
+        if (client?.id) {
+            loadReservations();
+        }
+    }, [client]);
 
-    const loadReservations = () => {
-        const allReservations = JSON.parse(localStorage.getItem('reservations') || '[]');
-        const clientReservations = allReservations
-            .filter(r => r.clientId === client.id)
-            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-        setReservations(clientReservations);
+    const loadReservations = async () => {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+
+        try {
+            const response = await fetch(`${import.meta.env.VITE_API_URL}/api/reservations/my`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            if (response.ok) {
+                const data = await response.json();
+                // Backend already sorts by date desc (from controller: sort({ date: -1 }))
+                setReservations(data);
+            }
+        } catch (error) {
+            console.error('Erreur chargement réservations:', error);
+        }
     };
 
-    const handleCancelReservation = (reservationId) => {
+    const handleCancelReservation = async (reservationId) => {
         if (!confirm('Êtes-vous sûr de vouloir annuler cette réservation ?')) return;
 
-        const allReservations = JSON.parse(localStorage.getItem('reservations') || '[]');
-        const updatedReservations = allReservations.map(r =>
-            r.id === reservationId
-                ? { ...r, status: 'cancelled', updatedAt: new Date().toISOString() }
-                : r
-        );
-        localStorage.setItem('reservations', JSON.stringify(updatedReservations));
-        loadReservations();
+        const token = localStorage.getItem('token');
+        try {
+            const response = await fetch(`${import.meta.env.VITE_API_URL}/api/reservations/${reservationId}/status`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ status: 'cancelled' })
+            });
+
+            if (response.ok) {
+                loadReservations(); // Reload list
+            } else {
+                alert('Erreur lors de l\'annulation');
+            }
+        } catch (error) {
+            console.error('Erreur annulation:', error);
+            alert('Erreur lors de l\'annulation');
+        }
     };
 
     const getStatusConfig = (status) => {
@@ -92,8 +118,8 @@ const MyReservations = () => {
                     <button
                         onClick={() => setFilter('all')}
                         className={`px-4 py-2 rounded-md text-sm font-medium transition ${filter === 'all'
-                                ? 'bg-white text-pink-600 shadow-sm'
-                                : 'text-gray-600 hover:text-gray-800'
+                            ? 'bg-white text-pink-600 shadow-sm'
+                            : 'text-gray-600 hover:text-gray-800'
                             }`}
                     >
                         Tous ({reservations.length})
@@ -101,8 +127,8 @@ const MyReservations = () => {
                     <button
                         onClick={() => setFilter('active')}
                         className={`px-4 py-2 rounded-md text-sm font-medium transition ${filter === 'active'
-                                ? 'bg-white text-pink-600 shadow-sm'
-                                : 'text-gray-600 hover:text-gray-800'
+                            ? 'bg-white text-pink-600 shadow-sm'
+                            : 'text-gray-600 hover:text-gray-800'
                             }`}
                     >
                         Actifs ({reservations.filter(r => r.status === 'pending' || r.status === 'confirmed').length})
@@ -110,8 +136,8 @@ const MyReservations = () => {
                     <button
                         onClick={() => setFilter('pending')}
                         className={`px-4 py-2 rounded-md text-sm font-medium transition ${filter === 'pending'
-                                ? 'bg-white text-pink-600 shadow-sm'
-                                : 'text-gray-600 hover:text-gray-800'
+                            ? 'bg-white text-pink-600 shadow-sm'
+                            : 'text-gray-600 hover:text-gray-800'
                             }`}
                     >
                         En attente
@@ -141,7 +167,7 @@ const MyReservations = () => {
 
                         return (
                             <div
-                                key={reservation.id}
+                                key={reservation._id}
                                 className={`bg-white rounded-xl shadow-sm border-2 ${statusConfig.border} p-6 hover:shadow-md transition`}
                             >
                                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -186,7 +212,7 @@ const MyReservations = () => {
                                     {canCancel && (
                                         <div className="flex lg:flex-col gap-2">
                                             <button
-                                                onClick={() => handleCancelReservation(reservation.id)}
+                                                onClick={() => handleCancelReservation(reservation._id)}
                                                 className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition border border-red-200 text-sm font-medium"
                                             >
                                                 <Trash2 size={16} />

@@ -1,5 +1,6 @@
 import React from 'react';
 import { format, isSameMonth, isToday } from 'date-fns';
+import { Lock } from 'lucide-react';
 import { getStatusForReservations } from './CalendarConfig';
 
 const CalendarCell = ({ date, monthStart, reservations = [], isClosed, onClick }) => {
@@ -94,12 +95,13 @@ const CalendarCell = ({ date, monthStart, reservations = [], isClosed, onClick }
 
             {/* Labels */}
             {isClosed && !isPast && (
-                <div className="mt-auto text-xs italic text-gray-500 text-center w-full">
-                    Fermé
+                <div className="mt-auto flex flex-col items-center w-full">
+                    <Lock size={14} className="text-gray-400 sm:mb-1" />
+                    <span className="text-[10px] sm:text-xs italic text-gray-500 hidden sm:block">Fermé</span>
                 </div>
             )}
             {isPast && (
-                <div className="mt-auto text-xs italic text-gray-500 text-center w-full">
+                <div className="mt-auto text-[10px] sm:text-xs italic text-gray-500 text-center w-full hidden sm:block">
                     Passé
                 </div>
             )}

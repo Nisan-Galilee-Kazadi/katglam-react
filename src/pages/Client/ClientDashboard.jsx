@@ -13,26 +13,45 @@ const ClientDashboard = () => {
     const navigate = useNavigate();
 
     useEffect(() => {
-        // Load client's reservations
-        const allReservations = JSON.parse(localStorage.getItem('reservations') || '[]');
-        const clientReservations = allReservations.filter(r => r.clientId === client.id);
+        const fetchReservations = async () => {
+            const token = localStorage.getItem('token');
+            if (!token) return;
 
-        // Calculate stats
-        const pending = clientReservations.filter(r => r.status === 'pending').length;
-        const confirmed = clientReservations.filter(r => r.status === 'confirmed').length;
+            try {
+                const response = await fetch(`${import.meta.env.VITE_API_URL}/api/reservations/my`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
 
-        setStats({
-            pending,
-            confirmed,
-            total: clientReservations.length
-        });
+                if (response.ok) {
+                    const clientReservations = await response.json();
 
-        // Get recent reservations (last 3)
-        const recent = clientReservations
-            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-            .slice(0, 3);
-        setRecentReservations(recent);
-    }, [client.id]);
+                    // Calculate stats
+                    const pending = clientReservations.filter(r => r.status === 'pending').length;
+                    const confirmed = clientReservations.filter(r => r.status === 'confirmed').length;
+
+                    setStats({
+                        pending,
+                        confirmed,
+                        total: clientReservations.length
+                    });
+
+                    // Get recent reservations (last 3)
+                    const recent = clientReservations
+                        .slice(0, 3); // Sorting is already done by backend (date: -1)
+
+                    setRecentReservations(recent);
+                }
+            } catch (error) {
+                console.error('Erreur chargement réservations:', error);
+            }
+        };
+
+        if (client?.id) {
+            fetchReservations();
+        }
+    }, [client]);
 
     const getStatusBadge = (status) => {
         const badges = {

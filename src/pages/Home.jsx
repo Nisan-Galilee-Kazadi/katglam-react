@@ -1,8 +1,64 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Star, ArrowRight, Heart, Sparkles, CheckCircle2 } from 'lucide-react';
+import axios from 'axios';
 
 const Home = () => {
+    const [portfolioItems, setPortfolioItems] = useState([]);
+    const [pricingData, setPricingData] = useState({
+        wedding: [],
+        package: null,
+        general: []
+    });
+
+    useEffect(() => {
+        const fetchPortfolio = async () => {
+            try {
+                const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/realisations`);
+                // Get most recent 4 items
+                const recentItems = response.data.slice(0, 4);
+
+                // Map to get the first image of each item
+                const mappedItems = recentItems.map(item => {
+                    const img = item.images && item.images.length > 0 ? item.images[0] : null;
+                    if (!img) return null;
+
+                    let src = img;
+                    if (!src.startsWith('http') && !src.startsWith('/Images')) {
+                        src = `${import.meta.env.VITE_API_URL}${src}`;
+                    }
+                    return { src, id: item._id };
+                }).filter(Boolean);
+
+                setPortfolioItems(mappedItems);
+            } catch (error) {
+                console.error('Error fetching portfolio for home:', error);
+            }
+        };
+
+        fetchPortfolio();
+    }, []);
+
+    useEffect(() => {
+        const fetchPricing = async () => {
+            try {
+                const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/pricing`);
+                const allPricing = response.data;
+
+                // Group by category
+                const wedding = allPricing.filter(p => p.category === 'wedding');
+                const packageItem = allPricing.find(p => p.category === 'package' && p.featured);
+                const general = allPricing.filter(p => p.category === 'general');
+
+                setPricingData({ wedding, package: packageItem, general });
+            } catch (error) {
+                console.error('Error fetching pricing:', error);
+            }
+        };
+
+        fetchPricing();
+    }, []);
+
     return (
         <div className="w-full">
             {/* HERO SECTION */}
@@ -98,20 +154,23 @@ const Home = () => {
                     </div>
 
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
-                        {[
-                            '/Images/image3.jpeg',
-                            '/Images/image2.jpeg',
-                            '/Images/image.jpeg',
-                            '/Images/heroImg.jpg'
-                        ].map((src, i) => (
-                            <div key={i} className={`group relative overflow-hidden rounded-2xl shadow-md ${i % 2 === 0 ? 'md:translate-y-8' : ''}`}>
-                                <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors z-10"></div>
-                                <img src={src} className="w-full h-80 object-cover transform group-hover:scale-110 transition-transform duration-700" alt="Portfolio" />
-                                <div className="absolute bottom-4 left-4 z-20 opacity-0 group-hover:opacity-100 transition-opacity transform translate-y-2 group-hover:translate-y-0">
-                                    <span className="bg-white/90 backdrop-blur text-pink-600 text-xs font-bold px-3 py-1 rounded-full">Voir détails</span>
-                                </div>
-                            </div>
-                        ))}
+                        {portfolioItems.length > 0 ? (
+                            portfolioItems.map((item, i) => (
+                                <Link
+                                    to="/portfolio"
+                                    key={i}
+                                    className={`group relative overflow-hidden rounded-2xl shadow-md cursor-pointer ${i % 2 === 0 ? 'md:translate-y-8' : ''}`}
+                                >
+                                    <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors z-10"></div>
+                                    <img src={item.src} className="w-full h-80 object-cover transform group-hover:scale-110 transition-transform duration-700" alt="Portfolio" />
+                                    <div className="absolute bottom-4 left-4 z-20 opacity-0 group-hover:opacity-100 transition-opacity transform translate-y-2 group-hover:translate-y-0">
+                                        <span className="bg-white/90 backdrop-blur text-pink-600 text-xs font-bold px-3 py-1 rounded-full">Voir détails</span>
+                                    </div>
+                                </Link>
+                            ))
+                        ) : (
+                            <p className="col-span-full text-center text-gray-400 italic">Chargement du portfolio...</p>
+                        )}
                     </div>
 
                     <div className="text-center mt-12">
@@ -137,15 +196,7 @@ const Home = () => {
                 <div className="max-w-6xl mx-auto px-4 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center mb-20">
                     {/* Left: Price List */}
                     <div className="space-y-4">
-                        {[
-                            { name: 'Maquillage Predot', price: '25$' },
-                            { name: 'Maquillage Photo Save The Date', price: '20$' },
-                            { name: 'Maquillage Civil', price: '40$' },
-                            { name: 'Maquillage Coutumier', price: '40$' },
-                            { name: 'Maquillage Religieux (+ Retouche)', price: '70$' },
-                            { name: 'Retouche', price: '25$' },
-                            { name: 'Maquillage D\'essais Avant Jour-J', price: '25$' },
-                        ].map((item, idx) => (
+                        {pricingData.wedding.map((item, idx) => (
                             <div key={idx} className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg p-5 flex justify-between items-center hover:bg-white/10 transition duration-300">
                                 <span className="font-medium text-gray-200">{item.name}</span>
                                 <span className="font-bold text-yellow-500 text-xl">{item.price}</span>
@@ -154,28 +205,31 @@ const Home = () => {
                     </div>
 
                     {/* Right: Premium Package Card */}
-                    <div className="bg-gradient-to-br from-[#2c1810] to-[#1a0f0a] border border-yellow-500/30 rounded-3xl p-8 text-center relative overflow-hidden shadow-2xl shadow-yellow-900/20">
-                        {/* Glow effect */}
-                        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-1 bg-yellow-500 shadow-[0_0_20px_rgba(234,179,8,0.6)]"></div>
+                    {pricingData.package && (
+                        <div className="bg-gradient-to-br from-[#2c1810] to-[#1a0f0a] border border-yellow-500/30 rounded-3xl p-8 text-center relative overflow-hidden shadow-2xl shadow-yellow-900/20">
+                            {/* Glow effect */}
+                            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-1 bg-yellow-500 shadow-[0_0_20px_rgba(234,179,8,0.6)]"></div>
 
-                        <h3 className="text-white font-bold text-xl uppercase tracking-widest mb-1">Pack Mariée Premium</h3>
-                        <p className="text-xs text-gray-400 mb-8 uppercase tracking-wide">L'expérience complète</p>
+                            <h3 className="text-white font-bold text-xl uppercase tracking-widest mb-1">{pricingData.package.name}</h3>
+                            <p className="text-xs text-gray-400 mb-8 uppercase tracking-wide">{pricingData.package.description || "L'expérience complète"}</p>
 
-                        <div className="text-6xl font-serif font-bold text-white mb-8">
-                            135$
+                            <div className="text-6xl font-serif font-bold text-white mb-8">
+                                {pricingData.package.price}
+                            </div>
+
+                            <ul className="text-gray-300 text-sm space-y-3 mb-10 text-left w-fit mx-auto">
+                                {pricingData.package.packageIncludes && pricingData.package.packageIncludes.map((inc, idx) => (
+                                    <li key={idx} className="flex items-center gap-3">
+                                        <Heart size={14} className="text-yellow-500 fill-yellow-500" /> {inc}
+                                    </li>
+                                ))}
+                            </ul>
+
+                            <Link to="/client/login" className="block w-full bg-yellow-600 hover:bg-yellow-500 text-white font-bold py-4 rounded-xl shadow-lg transition-transform transform hover:scale-[1.02]">
+                                Réserver ce Pack
+                            </Link>
                         </div>
-
-                        <ul className="text-gray-300 text-sm space-y-3 mb-10 text-left w-fit mx-auto">
-                            <li className="flex items-center gap-3"><Heart size={14} className="text-yellow-500 fill-yellow-500" /> Maquillage Civil</li>
-                            <li className="flex items-center gap-3"><Heart size={14} className="text-yellow-500 fill-yellow-500" /> Maquillage Coutumier</li>
-                            <li className="flex items-center gap-3"><Heart size={14} className="text-yellow-500 fill-yellow-500" /> Maquillage Religieux</li>
-                            <li className="flex items-center gap-3"><Heart size={14} className="text-yellow-500 fill-yellow-500" /> Retouche Incluse</li>
-                        </ul>
-
-                        <Link to="/client/login" className="block w-full bg-yellow-600 hover:bg-yellow-500 text-white font-bold py-4 rounded-xl shadow-lg transition-transform transform hover:scale-[1.02]">
-                            Réserver ce Pack
-                        </Link>
-                    </div>
+                    )}
                 </div>
             </div>
 
@@ -188,16 +242,7 @@ const Home = () => {
                 </div>
 
                 <div className="max-w-6xl mx-auto px-4 grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {[
-                        { title: 'Maquillage Simple (Jour)', price: '15$', desc: 'Un maquillage léger et naturel, idéal pour sublimer votre beauté au quotidien.' },
-                        { title: 'Maquillage Simple (Soirée)', price: '20$', desc: 'Un maquillage élégant et lumineux, parfait pour vos sorties, dîners ou événements.' },
-                        { title: 'Maquillage Nude (Jour)', price: '20$', desc: 'Un effet "peau nue" sophistiqué, pour un teint frais et éclatant tout en restant discret.' },
-                        { title: 'Maquillage Nude (Soirée)', price: '25$', desc: 'Un maquillage nude rehaussé, parfait pour briller lors de vos soirées tout en gardant un look naturel.' },
-                        { title: 'Maquillage Glam', price: '30$', desc: 'Un maquillage sophistiqué et intense, idéal pour les grandes occasions ou pour un look glamour.' },
-                        { title: 'Maquillage Événementiel', price: '25$', desc: 'Un maquillage sur-mesure pour vos événements spéciaux : anniversaires, galas, cérémonies.' },
-                        { title: 'Maquillage Séance Photo', price: '25$', desc: 'Un maquillage professionnel conçu pour sublimer votre visage sous l\'objectif.' },
-                        { title: 'La Retouche', price: '10$', desc: 'Une retouche rapide pour raviver votre maquillage et rester impeccable toute la journée.' }
-                    ].map((item, idx) => (
+                    {pricingData.general.map((item, idx) => (
                         <div key={idx} className="bg-white border border-gray-100 p-8 rounded-2xl shadow-sm flex gap-6 hover:shadow-lg transition-shadow duration-300">
                             <div className="flex-shrink-0">
                                 <div className="w-12 h-12 bg-pink-50 text-pink-500 rounded-full flex items-center justify-center">
@@ -206,10 +251,10 @@ const Home = () => {
                             </div>
                             <div className="flex-grow">
                                 <div className="flex justify-between items-start mb-2">
-                                    <h3 className="font-bold text-gray-800 text-lg">{item.title}</h3>
+                                    <h3 className="font-bold text-gray-800 text-lg">{item.name}</h3>
                                     <span className="font-bold text-pink-500 text-xl">{item.price}</span>
                                 </div>
-                                <p className="text-gray-500 text-sm leading-relaxed mb-4">{item.desc}</p>
+                                <p className="text-gray-500 text-sm leading-relaxed mb-4">{item.description}</p>
                                 <div className="flex items-center gap-2 text-xs text-green-600 font-medium">
                                     <CheckCircle2 size={12} /> Produits professionnels
                                 </div>

@@ -17,6 +17,8 @@ export const CALENDAR_CONFIG = {
         { value: "11:00", label: "11:00 - 12:30" },
         { value: "14:00", label: "14:00 - 15:30" },
         { value: "16:00", label: "16:00 - 17:30" },
+        { value: "18:00", label: "18:00 - 19:30" },
+        { value: "20:00", label: "20:00 - 21:30" },
     ],
 
     // Styles de maquillage disponibles

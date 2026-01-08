@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { X, Calendar, Clock, Palette, StickyNote, Send, Check } from 'lucide-react';
+import axios from 'axios';
 import { CALENDAR_CONFIG } from '../Admin/CalendarConfig';
 
-const ReservationRequestModal = ({ date, client, onClose, onSubmit }) => {
+const ReservationRequestModal = ({ date, client, onClose, onSubmit, occupiedSlots = [] }) => {
     const [formData, setFormData] = useState({
         timeSlot: '',
         service: '',
@@ -30,7 +31,7 @@ const ReservationRequestModal = ({ date, client, onClose, onSubmit }) => {
         return Object.keys(newErrors).length === 0;
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
 
         if (!validateForm()) return;
@@ -39,31 +40,33 @@ const ReservationRequestModal = ({ date, client, onClose, onSubmit }) => {
 
         // Create reservation request
         const reservation = {
-            id: Date.now().toString(),
-            clientId: client.id,
+            clientId: client._id || client.id,
             clientName: client.name,
             clientPhone: client.phone,
             clientEmail: client.email,
-            clientAddress: client.address,
+            address: client.address,
             date: date.toISOString(),
             timeSlot: formData.timeSlot,
             service: formData.service,
             notes: formData.notes,
-            status: 'pending',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
+            status: 'pending'
         };
 
-        // Save to localStorage
-        const reservations = JSON.parse(localStorage.getItem('reservations') || '[]');
-        reservations.push(reservation);
-        localStorage.setItem('reservations', JSON.stringify(reservations));
+        try {
+            const API_URL = `${import.meta.env.VITE_API_URL}/api/reservations`;
+            await axios.post(API_URL, reservation);
 
-        // Show success message
-        setSuccess(true);
-        setTimeout(() => {
-            onSubmit();
-        }, 1500);
+            // Show success message
+            setSuccess(true);
+            setTimeout(() => {
+                onSubmit();
+            }, 1500);
+        } catch (error) {
+            console.error('Erreur lors de l\'envoi de la demande:', error);
+            setErrors({ global: "Une erreur est survenue lors de l'envoi de votre demande." });
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     if (success) {
@@ -128,9 +131,19 @@ const ReservationRequestModal = ({ date, client, onClose, onSubmit }) => {
                             onChange={(e) => handleInputChange('timeSlot', e.target.value)}
                         >
                             <option value="">Sélectionnez un créneau</option>
-                            {CALENDAR_CONFIG.timeSlots.map(slot => (
-                                <option key={slot.value} value={slot.value}>{slot.label}</option>
-                            ))}
+                            {CALENDAR_CONFIG.timeSlots.map(slot => {
+                                const isOccupied = occupiedSlots.includes(slot.value);
+                                return (
+                                    <option
+                                        key={slot.value}
+                                        value={slot.value}
+                                        disabled={isOccupied}
+                                        className={isOccupied ? 'text-gray-400 bg-gray-50' : ''}
+                                    >
+                                        {slot.label} {isOccupied ? '(Complet)' : ''}
+                                    </option>
+                                );
+                            })}
                         </select>
                         {errors.timeSlot && <p className="text-red-500 text-xs mt-1">{errors.timeSlot}</p>}
                     </div>
@@ -180,7 +193,7 @@ const ReservationRequestModal = ({ date, client, onClose, onSubmit }) => {
                 </form>
 
                 {/* Footer */}
-                <div className="p-4 border-t border-gray-100 bg-gray-50 flex gap-3">
+                <div className="p-4 border-t border-gray-100 bg-gray-50 flex flex-col sm:flex-row gap-3">
                     <button
                         type="button"
                         onClick={onClose}

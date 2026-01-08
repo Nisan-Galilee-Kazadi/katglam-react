@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Calendar, Image, Settings, LogOut, Home, Lock, Menu, X } from 'lucide-react';
+import { LayoutDashboard, Calendar, Image, Settings, LogOut, Home, Lock, Menu, X, ClipboardList, Bell, User, BookOpen, DollarSign } from 'lucide-react';
 
 const AdminLayout = () => {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -8,6 +8,7 @@ const AdminLayout = () => {
     const [error, setError] = useState('');
     const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Mobile sidebar state
     const [profilePhoto, setProfilePhoto] = useState(null);
+    const [pendingCount, setPendingCount] = useState(0);
     const navigate = useNavigate();
 
     // Load profile photo from localStorage
@@ -29,6 +30,25 @@ const AdminLayout = () => {
             window.removeEventListener('storage', loadProfilePhoto);
             window.removeEventListener('profilePhotoUpdated', loadProfilePhoto);
         };
+    }, []);
+
+    // Load pending requests count
+    useEffect(() => {
+        const updatePendingCount = async () => {
+            try {
+                const response = await fetch(`${import.meta.env.VITE_API_URL}/api/reservations`);
+                const reservations = await response.json();
+                const pending = reservations.filter(r => r.status === 'pending').length;
+                setPendingCount(pending);
+            } catch (error) {
+                console.error('Error fetching pending count:', error);
+            }
+        };
+
+        updatePendingCount();
+        const interval = setInterval(updatePendingCount, 10000); // Polling every 10s for live updates
+
+        return () => clearInterval(interval);
     }, []);
 
     const handleLogin = (e) => {
@@ -169,6 +189,33 @@ const AdminLayout = () => {
                             Calendrier
                         </NavLink>
                         <NavLink
+                            to="/admin/requests"
+                            onClick={() => setIsSidebarOpen(false)}
+                            className={({ isActive }) =>
+                                `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors relative ${isActive ? 'bg-pink-50 text-pink-600 font-semibold' : 'text-gray-600 hover:bg-gray-50'
+                                }`
+                            }
+                        >
+                            <ClipboardList size={20} />
+                            Demandes
+                            {pendingCount > 0 && (
+                                <span className="ml-auto bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full min-w-[20px] text-center animate-pulse">
+                                    {pendingCount}
+                                </span>
+                            )}
+                        </NavLink>
+                        <NavLink
+                            to="/admin/clients"
+                            onClick={() => setIsSidebarOpen(false)}
+                            className={({ isActive }) =>
+                                `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${isActive ? 'bg-pink-50 text-pink-600 font-semibold' : 'text-gray-600 hover:bg-gray-50'
+                                }`
+                            }
+                        >
+                            <User size={20} />
+                            Clients
+                        </NavLink>
+                        <NavLink
                             to="/admin/portfolio"
                             onClick={() => setIsSidebarOpen(false)}
                             className={({ isActive }) =>
@@ -178,6 +225,28 @@ const AdminLayout = () => {
                         >
                             <Image size={20} />
                             Portfolio
+                        </NavLink>
+                        <NavLink
+                            to="/admin/formations"
+                            onClick={() => setIsSidebarOpen(false)}
+                            className={({ isActive }) =>
+                                `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${isActive ? 'bg-pink-50 text-pink-600 font-semibold' : 'text-gray-600 hover:bg-gray-50'
+                                }`
+                            }
+                        >
+                            <BookOpen size={20} />
+                            Formations
+                        </NavLink>
+                        <NavLink
+                            to="/admin/pricing"
+                            onClick={() => setIsSidebarOpen(false)}
+                            className={({ isActive }) =>
+                                `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${isActive ? 'bg-pink-50 text-pink-600 font-semibold' : 'text-gray-600 hover:bg-gray-50'
+                                }`
+                            }
+                        >
+                            <DollarSign size={20} />
+                            Tarifs
                         </NavLink>
                         <NavLink
                             to="/admin/settings"

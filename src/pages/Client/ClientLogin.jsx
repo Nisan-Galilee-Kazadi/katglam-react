@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Phone, Mail, MapPin, Lock, ArrowRight, LogIn, AlertCircle } from 'lucide-react';
+import { User, Phone, Mail, MapPin, Lock, ArrowRight, LogIn, AlertCircle, ArrowLeft, Check } from 'lucide-react';
 
 const ClientLogin = () => {
     const [isRegistering, setIsRegistering] = useState(false);
+    const [registrationStep, setRegistrationStep] = useState(1); // 1 or 2
     const [formData, setFormData] = useState({
         name: '',
         phone: '',
@@ -14,59 +15,75 @@ const ClientLogin = () => {
     const [error, setError] = useState('');
     const navigate = useNavigate();
 
-    const handleLogin = (e) => {
+    const handleLogin = async (e) => {
         e.preventDefault();
         setError('');
 
+        try {
+            const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: formData.name,
+                    password: formData.phone
+                })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.message || 'Identifiants invalides');
+            }
+
+            console.log('Connexion réussie:', data);
+            localStorage.setItem('token', data.token);
+            localStorage.setItem('client_session', JSON.stringify(data.user));
+            navigate('/client');
+        } catch (err) {
+            setError(err.message === 'Failed to fetch' ? 'Impossible de contacter le serveur (Port 5000)' : err.message);
+        }
+    };
+
+    // Ajout de validations strictes pour chaque étape
+    const handleRegistrationStep1 = (e) => {
+        e.preventDefault();
+        setError('');
+
+        // Validation stricte des champs de l'étape 1
         if (!formData.name.trim() || !formData.phone.trim()) {
-            setError('Veuillez remplir tous les champs');
+            setError('Veuillez remplir tous les champs requis pour continuer.');
             return;
         }
 
-        // Get clients from localStorage
+        // Vérification si le numéro de téléphone existe déjà
         const clients = JSON.parse(localStorage.getItem('clients') || '[]');
-
-        // Find client by name and phone
-        const client = clients.find(c =>
-            c.name.toLowerCase() === formData.name.toLowerCase().trim() &&
-            c.phone === formData.phone.trim()
-        );
-
-        if (client) {
-            // Set session
-            localStorage.setItem('client_session', JSON.stringify(client));
-            navigate('/client');
-        } else {
-            setError('Aucun compte trouvé avec ces informations. Veuillez vous inscrire.');
+        if (clients.some(c => c.phone === formData.phone.trim())) {
+            setError('Ce numéro de téléphone est déjà enregistré.');
+            return;
         }
+
+        // Passer à l'étape 2
+        setRegistrationStep(2);
     };
 
     const handleRegister = (e) => {
         e.preventDefault();
         setError('');
 
-        // Validate all required fields
-        if (!formData.name.trim() || !formData.phone.trim() || !formData.email.trim() || !formData.address.trim()) {
-            setError('Veuillez remplir tous les champs obligatoires');
+        // Validation stricte des champs de l'étape 2
+        if (!formData.email.trim() || !formData.address.trim()) {
+            setError('Veuillez remplir tous les champs obligatoires pour terminer l\'inscription.');
             return;
         }
 
-        // Validate email format
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-            setError('Email invalide');
+        // Validation ajustée pour rendre l'email facultatif
+        if (formData.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+            setError('Veuillez entrer une adresse email valide si vous en fournissez une.');
             return;
         }
 
-        // Get existing clients
+        // Enregistrement du nouveau client
         const clients = JSON.parse(localStorage.getItem('clients') || '[]');
-
-        // Check if phone already exists
-        if (clients.some(c => c.phone === formData.phone.trim())) {
-            setError('Ce numéro de téléphone est déjà enregistré');
-            return;
-        }
-
-        // Create new client
         const newClient = {
             id: Date.now().toString(),
             name: formData.name.trim(),
@@ -77,20 +94,25 @@ const ClientLogin = () => {
             createdAt: new Date().toISOString()
         };
 
-        // Save to localStorage
         clients.push(newClient);
         localStorage.setItem('clients', JSON.stringify(clients));
 
-        // Set session
+        // Redirection après inscription
         localStorage.setItem('client_session', JSON.stringify(newClient));
-
-        // Redirect to client dashboard
         navigate('/client');
     };
 
     const handleInputChange = (field, value) => {
         setFormData(prev => ({ ...prev, [field]: value }));
         setError('');
+    };
+
+    // Réinitialisation des données lors du changement de mode
+    const toggleMode = () => {
+        setIsRegistering(!isRegistering);
+        setRegistrationStep(1);
+        setError('');
+        setFormData({ name: '', phone: '', email: '', address: '', preferences: '' });
     };
 
     return (
@@ -120,14 +142,21 @@ const ClientLogin = () => {
                         </h1>
                         <p className="text-pink-50 text-sm">
                             {isRegistering
-                                ? 'Rejoignez KatGlamour et réservez facilement'
+                                ? `Étape ${registrationStep}/2 - ${registrationStep === 1 ? 'Informations de base' : 'Coordonnées'}`
                                 : 'Accédez à votre espace personnel'}
                         </p>
+                        {/* Step Indicator for Registration */}
+                        {isRegistering && (
+                            <div className="flex items-center justify-center gap-2 mt-4">
+                                <div className={`h-2 w-2 rounded-full transition-all ${registrationStep >= 1 ? 'bg-white w-8' : 'bg-white/30'}`}></div>
+                                <div className={`h-2 w-2 rounded-full transition-all ${registrationStep >= 2 ? 'bg-white w-8' : 'bg-white/30'}`}></div>
+                            </div>
+                        )}
                     </div>
                 </div>
 
                 {/* Form */}
-                <form onSubmit={isRegistering ? handleRegister : handleLogin} className="p-8 space-y-5">
+                <form onSubmit={isRegistering ? (registrationStep === 1 ? handleRegistrationStep1 : handleRegister) : handleLogin} className="p-8 space-y-5">
                     {error && (
                         <div className="bg-red-50 border-l-4 border-red-500 text-red-700 px-4 py-3 rounded-lg text-sm flex items-start gap-2 animate-in slide-in-from-top">
                             <AlertCircle size={18} className="flex-shrink-0 mt-0.5" />
@@ -135,45 +164,50 @@ const ClientLogin = () => {
                         </div>
                     )}
 
-                    {/* Name */}
-                    <div className="space-y-2">
-                        <label className="block text-sm font-semibold text-gray-700">
-                            Nom complet <span className="text-red-500">*</span>
-                        </label>
-                        <div className="relative group">
-                            <User size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-pink-500 transition" />
-                            <input
-                                type="text"
-                                className="w-full pl-12 pr-4 py-3.5 border-2 border-gray-200 rounded-xl focus:border-pink-500 focus:ring-4 focus:ring-pink-100 outline-none transition bg-gray-50 focus:bg-white"
-                                placeholder="Votre nom complet"
-                                value={formData.name}
-                                onChange={(e) => handleInputChange('name', e.target.value)}
-                                required
-                            />
-                        </div>
-                    </div>
+                    {/* Name and Phone - Step 1 Only */}
+                    {isRegistering && registrationStep === 1 && (
+                        <>
+                            {/* Name */}
+                            <div className="space-y-2">
+                                <label className="block text-sm font-semibold text-gray-700">
+                                    Nom complet <span className="text-red-500">*</span>
+                                </label>
+                                <div className="relative group">
+                                    <User size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-pink-500 transition" />
+                                    <input
+                                        type="text"
+                                        className="w-full pl-12 pr-4 py-3.5 border-2 border-gray-200 rounded-xl focus:border-pink-500 focus:ring-4 focus:ring-pink-100 outline-none transition bg-gray-50 focus:bg-white"
+                                        placeholder="Votre nom complet"
+                                        value={formData.name}
+                                        onChange={(e) => handleInputChange('name', e.target.value)}
+                                        required
+                                    />
+                                </div>
+                            </div>
 
-                    {/* Phone */}
-                    <div className="space-y-2">
-                        <label className="block text-sm font-semibold text-gray-700">
-                            Numéro de téléphone <span className="text-red-500">*</span>
-                        </label>
-                        <div className="relative group">
-                            <Phone size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-pink-500 transition" />
-                            <input
-                                type="tel"
-                                className="w-full pl-12 pr-4 py-3.5 border-2 border-gray-200 rounded-xl focus:border-pink-500 focus:ring-4 focus:ring-pink-100 outline-none transition bg-gray-50 focus:bg-white"
-                                placeholder="+243 XXX XXX XXX"
-                                value={formData.phone}
-                                onChange={(e) => handleInputChange('phone', e.target.value)}
-                                required
-                            />
-                        </div>
-                    </div>
+                            {/* Phone */}
+                            <div className="space-y-2">
+                                <label className="block text-sm font-semibold text-gray-700">
+                                    Numéro de téléphone <span className="text-red-500">*</span>
+                                </label>
+                                <div className="relative group">
+                                    <Phone size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-pink-500 transition" />
+                                    <input
+                                        type="tel"
+                                        className="w-full pl-12 pr-4 py-3.5 border-2 border-gray-200 rounded-xl focus:border-pink-500 focus:ring-4 focus:ring-pink-100 outline-none transition bg-gray-50 focus:bg-white"
+                                        placeholder="+243 XXX XXX XXX"
+                                        value={formData.phone}
+                                        onChange={(e) => handleInputChange('phone', e.target.value)}
+                                        required
+                                    />
+                                </div>
+                            </div>
+                        </>
+                    )}
 
-                    {/* Registration-only fields */}
-                    {isRegistering && (
-                        <div className="space-y-5 animate-in slide-in-from-top">
+                    {/* Registration Step 2 fields */}
+                    {isRegistering && registrationStep === 2 && (
+                        <div className="space-y-5 animate-in slide-in-from-right">
                             {/* Email */}
                             <div className="space-y-2">
                                 <label className="block text-sm font-semibold text-gray-700">
@@ -187,7 +221,6 @@ const ClientLogin = () => {
                                         placeholder="votre@email.com"
                                         value={formData.email}
                                         onChange={(e) => handleInputChange('email', e.target.value)}
-                                        required
                                     />
                                 </div>
                             </div>
@@ -226,31 +259,91 @@ const ClientLogin = () => {
                         </div>
                     )}
 
-                    {/* Submit Button */}
-                    <button
-                        type="submit"
-                        className="w-full bg-gradient-to-r from-pink-500 to-pink-600 hover:from-pink-600 hover:to-pink-700 text-white font-bold py-4 rounded-xl transition-all transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg shadow-pink-500/30"
-                    >
-                        {isRegistering ? (
-                            <>
-                                S'inscrire <ArrowRight size={20} />
-                            </>
-                        ) : (
-                            <>
-                                Se connecter <LogIn size={20} />
-                            </>
+                    {/* Login Fields */}
+                    {!isRegistering && (
+                        <>
+                            {/* Name */}
+                            <div className="space-y-2">
+                                <label className="block text-sm font-semibold text-gray-700">
+                                    Nom Complet <span className="text-red-500">*</span>
+                                </label>
+                                <div className="relative group">
+                                    <User size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-pink-500 transition" />
+                                    <input
+                                        type="text"
+                                        className="w-full pl-12 pr-4 py-3.5 border-2 border-gray-200 rounded-xl focus:border-pink-500 focus:ring-4 focus:ring-pink-100 outline-none transition bg-gray-50 focus:bg-white"
+                                        placeholder="Votre nom complet"
+                                        value={formData.name}
+                                        onChange={(e) => handleInputChange('name', e.target.value)}
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Phone (used as password) */}
+                            <div className="space-y-2">
+                                <label className="block text-sm font-semibold text-gray-700">
+                                    Numéro de téléphone <span className="text-red-500">*</span>
+                                </label>
+                                <div className="relative group">
+                                    <Phone size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-pink-500 transition" />
+                                    <input
+                                        type="tel"
+                                        className="w-full pl-12 pr-4 py-3.5 border-2 border-gray-200 rounded-xl focus:border-pink-500 focus:ring-4 focus:ring-pink-100 outline-none transition bg-gray-50 focus:bg-white"
+                                        placeholder="06 XX XX XX XX"
+                                        value={formData.phone}
+                                        onChange={(e) => handleInputChange('phone', e.target.value)}
+                                        required
+                                    />
+                                </div>
+                                <p className="text-[10px] text-gray-400 italic">Ton numéro sert de mot de passe par défaut.</p>
+                            </div>
+                        </>
+                    )}
+
+                    {/* Action Buttons */}
+                    <div className="flex gap-3">
+                        {/* Back button for registration step 2 */}
+                        {isRegistering && registrationStep === 2 && (
+                            <button
+                                type="button"
+                                onClick={() => setRegistrationStep(1)}
+                                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-4 rounded-xl transition-all flex items-center justify-center gap-2"
+                            >
+                                <ArrowLeft size={20} />
+                                Retour
+                            </button>
                         )}
-                    </button>
+
+                        {/* Submit/Next Button */}
+                        <button
+                            type="submit"
+                            className="flex-1 bg-gradient-to-r from-pink-500 to-pink-600 hover:from-pink-600 hover:to-pink-700 text-white font-bold py-4 rounded-xl transition-all transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg shadow-pink-500/30"
+                        >
+                            {isRegistering ? (
+                                registrationStep === 1 ? (
+                                    <>
+                                        Suivant <ArrowRight size={20} />
+                                    </>
+                                ) : (
+                                    <>
+                                        <Check size={20} />
+                                        Valider
+                                    </>
+                                )
+                            ) : (
+                                <>
+                                    Se connecter <LogIn size={20} />
+                                </>
+                            )}
+                        </button>
+                    </div>
 
                     {/* Toggle Mode */}
                     <div className="text-center pt-4 border-t border-gray-100">
                         <button
                             type="button"
-                            onClick={() => {
-                                setIsRegistering(!isRegistering);
-                                setError('');
-                                setFormData({ name: '', phone: '', email: '', address: '', preferences: '' });
-                            }}
+                            onClick={toggleMode}
                             className="text-pink-600 hover:text-pink-700 font-semibold text-sm transition hover:underline"
                         >
                             {isRegistering

@@ -3,18 +3,39 @@ import { useOutletContext } from 'react-router-dom';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Calendar, Clock, CheckCircle, XCircle, History as HistoryIcon } from 'lucide-react';
+import { getReservations } from '../../services/localStorageService';
 
 const ReservationHistory = () => {
     const { client } = useOutletContext();
     const [history, setHistory] = useState([]);
 
     useEffect(() => {
-        const allReservations = JSON.parse(localStorage.getItem('reservations') || '[]');
-        const clientHistory = allReservations
-            .filter(r => r.clientId === client.id)
-            .sort((a, b) => new Date(b.date) - new Date(a.date));
-        setHistory(clientHistory);
-    }, [client.id]);
+        const loadHistory = async () => {
+            const token = localStorage.getItem('token');
+            if (!token) return;
+
+            try {
+                const response = await fetch(`${import.meta.env.VITE_API_URL}/api/reservations/my`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    const clientHistory = await response.json();
+                    // Backend handles sorting or we do it here
+                    // .sort((a, b) => new Date(b.date) - new Date(a.date));
+                    setHistory(clientHistory);
+                }
+            } catch (error) {
+                console.error('Error loading reservation history:', error);
+            }
+        };
+
+        if (client?.id) {
+            loadHistory();
+        }
+    }, [client]);
 
     const getStatusIcon = (status) => {
         switch (status) {
@@ -72,7 +93,7 @@ const ReservationHistory = () => {
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 divide-y divide-gray-100">
                     {history.map((reservation, index) => (
                         <div
-                            key={reservation.id}
+                            key={reservation._id}
                             className="p-6 hover:bg-gray-50 transition"
                         >
                             <div className="flex items-start gap-4">

@@ -1,25 +1,39 @@
 import React, { useState, useEffect } from 'react';
 import { X, ZoomIn, Heart } from 'lucide-react';
+import axios from 'axios';
 
 const Portfolio = () => {
-    const [images, setImages] = useState([]);
-    const [selectedImage, setSelectedImage] = useState(null);
+    const [realisations, setRealisations] = useState([]);
+    const [selectedItem, setSelectedItem] = useState(null); // Now stores { src, title, description, section }
 
     useEffect(() => {
-        const storedImages = JSON.parse(localStorage.getItem('portfolioImages')) || [];
-        // Default images if empty
-        const defaultImages = [
-            '/Images/image3.jpeg',
-            '/Images/image2.jpeg',
-            '/Images/image.jpeg',
-            '/Images/heroImg.jpg',
-            '/Images/babysitter2.jpg',
-        ];
-        if (storedImages.length === 0) {
-            setImages(defaultImages);
-        } else {
-            setImages(storedImages);
-        }
+        const fetchPortfolio = async () => {
+            try {
+                const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/realisations`);
+                // Map realisations to include all necessary info
+                const mappedRealisations = response.data.flatMap(realisation =>
+                    realisation.images.map(img => {
+                        let imgUrl = img;
+                        if (!img) return null;
+                        if (!img.startsWith('http') && !img.startsWith('/Images')) {
+                            imgUrl = `${import.meta.env.VITE_API_URL}${img}`;
+                        }
+                        return {
+                            src: imgUrl,
+                            title: realisation.title,
+                            description: realisation.description,
+                            section: realisation.section
+                        };
+                    }).filter(Boolean)
+                );
+
+                setRealisations(mappedRealisations);
+            } catch (error) {
+                console.error('Error fetching portfolio:', error);
+            }
+        };
+
+        fetchPortfolio();
     }, []);
 
     return (
@@ -35,16 +49,16 @@ const Portfolio = () => {
 
             {/* Masonry-style Grid */}
             <div className="max-w-7xl mx-auto px-4 columns-1 md:columns-2 lg:columns-3 gap-8 space-y-8">
-                {images.map((src, index) => (
+                {realisations.map((item, index) => (
                     <div
                         key={index}
                         className="relative group rounded-2xl overflow-hidden shadow-lg cursor-pointer break-inside-avoid animate-fade-in-up"
                         style={{ animationDelay: `${index * 100}ms` }}
-                        onClick={() => setSelectedImage(src)}
+                        onClick={() => setSelectedItem(item)}
                     >
                         <img
-                            src={src}
-                            alt={`Réalisation ${index + 1}`}
+                            src={item.src}
+                            alt={item.title || `Réalisation ${index + 1}`}
                             className="w-full h-auto transform transition duration-700 group-hover:scale-110"
                             onError={(e) => { e.target.src = 'https://via.placeholder.com/600x800?text=Image+Missing' }}
                         />
@@ -62,18 +76,56 @@ const Portfolio = () => {
                 ))}
             </div>
 
-            {/* Lightbox Modal */}
-            {selectedImage && (
-                <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4 animate-in fade-in duration-300" onClick={() => setSelectedImage(null)}>
-                    <button className="absolute top-6 right-6 text-white text-4xl hover:text-pink-500 transition">
+            {/* Lightbox Modal with Details */}
+            {selectedItem && (
+                <div className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-4 animate-in fade-in duration-300" onClick={() => setSelectedItem(null)}>
+                    <button className="absolute top-6 right-6 text-white text-4xl hover:text-pink-500 transition z-50">
                         <X />
                     </button>
-                    <img
-                        src={selectedImage}
-                        alt="Zoom"
-                        className="max-h-[85vh] max-w-[90vw] object-contain rounded-lg shadow-2xl animate-in zoom-in-95 duration-300"
-                        onClick={(e) => e.stopPropagation()}
-                    />
+
+                    {/* Image with overlay details */}
+                    <div className="relative max-w-5xl w-full" onClick={(e) => e.stopPropagation()}>
+                        <img
+                            src={selectedItem.src}
+                            alt={selectedItem.title}
+                            className="w-full max-h-[85vh] object-contain rounded-xl shadow-2xl animate-in zoom-in-95 duration-300"
+                        />
+
+                        {/* Details Overlay at bottom */}
+                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/70 to-transparent rounded-b-xl p-8 pt-16">
+                            <div className="space-y-3">
+                                {/* Section Badge */}
+                                <div>
+                                    <span className="inline-block bg-pink-500/90 backdrop-blur-sm text-white px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider shadow-lg">
+                                        {selectedItem.section}
+                                    </span>
+                                </div>
+
+                                {/* Title */}
+                                <h3 className="text-3xl md:text-4xl font-serif font-bold text-white drop-shadow-lg">
+                                    {selectedItem.title}
+                                </h3>
+
+                                {/* Description */}
+                                {selectedItem.description && (
+                                    <p className="text-white/90 text-sm md:text-base leading-relaxed max-w-3xl drop-shadow">
+                                        {selectedItem.description}
+                                    </p>
+                                )}
+
+                                {/* CTA Button */}
+                                <div className="pt-4">
+                                    <a
+                                        href="/contact"
+                                        className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-md hover:bg-white/30 border border-white/30 text-white font-semibold px-6 py-3 rounded-full transition-all hover:scale-105 shadow-lg"
+                                    >
+                                        <Heart size={18} fill="currentColor" />
+                                        Réserver une séance similaire
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             )}
 

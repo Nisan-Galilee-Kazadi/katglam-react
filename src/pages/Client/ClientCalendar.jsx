@@ -4,35 +4,58 @@ import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInte
 import { fr } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, Lock, Check } from 'lucide-react';
 import ReservationRequestModal from './ReservationRequestModal';
+import { getLockedDates, getReservations } from '../../services/localStorageService';
+import { CALENDAR_CONFIG } from '../Admin/CalendarConfig';
 
 const ClientCalendar = () => {
     const { client } = useOutletContext();
     const [currentDate, setCurrentDate] = useState(new Date());
     const [selectedDate, setSelectedDate] = useState(null);
     const [reservations, setReservations] = useState([]);
-    const [lockedDates, setLockedDates] = useState([]);
+    const [lockedDates, setLockedDates] = useState([]); // Array of ISO date strings
+    const [closedDays, setClosedDays] = useState([]); // Array of day indices (0-6)
 
     useEffect(() => {
-        // Load all reservations to check availability
-        const allReservations = JSON.parse(localStorage.getItem('reservations') || '[]');
-        setReservations(allReservations);
+        const loadData = async () => {
+            try {
+                const token = localStorage.getItem('token');
 
-        // Load locked dates from admin settings
-        const businessHours = JSON.parse(localStorage.getItem('business_hours') || '{}');
-        const locked = [];
+                // Load availability from API instead of localStorage
+                const response = await fetch(`${import.meta.env.VITE_API_URL}/api/reservations/availability`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
 
-        // Get closed days from business hours
-        Object.entries(businessHours).forEach(([day, hours]) => {
-            if (hours.closed) {
-                const dayIndex = {
-                    'sunday': 0, 'monday': 1, 'tuesday': 2, 'wednesday': 3,
-                    'thursday': 4, 'friday': 5, 'saturday': 6
-                }[day];
-                locked.push(dayIndex);
+                if (response.ok) {
+                    const activeReservations = await response.json();
+                    setReservations(activeReservations);
+                }
+
+                // Load locked dates from admin (specific dates locked)
+                // Note: Ideally this should also be an API call
+                const adminLockedDates = getLockedDates();
+                setLockedDates(adminLockedDates);
+
+                // Load closed days from business hours (recurring weekly closures)
+                const businessHours = JSON.parse(localStorage.getItem('business_hours') || '{}');
+                const locked = [];
+
+                // Get closed days from business hours
+                Object.entries(businessHours).forEach(([day, hours]) => {
+                    if (hours.closed) {
+                        const dayIndex = {
+                            'sunday': 0, 'monday': 1, 'tuesday': 2, 'wednesday': 3,
+                            'thursday': 4, 'friday': 5, 'saturday': 6
+                        }[day];
+                        locked.push(dayIndex);
+                    }
+                });
+
+                setClosedDays(locked);
+            } catch (error) {
+                console.error('Error loading client calendar data:', error);
             }
-        });
-
-        setLockedDates(locked);
+        };
+        loadData();
     }, []);
 
     const nextMonth = () => setCurrentDate(addMonths(currentDate, 1));
@@ -45,20 +68,21 @@ const ClientCalendar = () => {
     const calendarDays = eachDayOfInterval({ start: startDate, end: endDate });
 
     const isDayAvailable = (day) => {
-        // Check if day is in the past
         if (isPast(startOfDay(day)) && !isSameDay(day, new Date())) {
             return false;
         }
 
-        // Check if day is a closed day
-        if (lockedDates.includes(day.getDay())) {
+        const dayISO = day.toISOString();
+        if (lockedDates.includes(dayISO)) {
             return false;
         }
 
-        // Check if day is fully booked (6 reservations max)
+        if (closedDays.includes(day.getDay())) {
+            return false;
+        }
+
         const dayReservations = reservations.filter(r =>
-            isSameDay(new Date(r.date), day) &&
-            (r.status === 'confirmed' || r.status === 'pending')
+            isSameDay(new Date(r.date), day)
         );
 
         return dayReservations.length < 6;
@@ -66,8 +90,7 @@ const ClientCalendar = () => {
 
     const getReservationCount = (day) => {
         return reservations.filter(r =>
-            isSameDay(new Date(r.date), day) &&
-            (r.status === 'confirmed' || r.status === 'pending')
+            isSameDay(new Date(r.date), day)
         ).length;
     };
 
@@ -77,43 +100,70 @@ const ClientCalendar = () => {
         }
     };
 
-    const handleReservationSubmit = () => {
-        // Reload reservations after new request
-        const allReservations = JSON.parse(localStorage.getItem('reservations') || '[]');
-        setReservations(allReservations);
-        setSelectedDate(null);
+    const handleReservationSubmit = async () => {
+        try {
+            // Reload reservations availability after new request
+            const token = localStorage.getItem('token');
+            const response = await fetch(`${import.meta.env.VITE_API_URL}/api/reservations/availability`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (response.ok) {
+                const activeReservations = await response.json();
+                setReservations(activeReservations);
+            }
+            setSelectedDate(null);
+        } catch (error) {
+            console.error('Error reloading reservations after submit:', error);
+        }
     };
 
     return (
-        <div className="max-w-4xl mx-auto">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="w-full h-full pb-2">
+            <style>
+                {`
+                    .scrollbar-hide::-webkit-scrollbar {
+                        display: none;
+                    }
+                    .scrollbar-hide {
+                        -ms-overflow-style: none;
+                        scrollbar-width: none;
+                    }
+                `}
+            </style>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-1 sm:p-3 scrollbar-hide">
                 {/* Header */}
-                <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
-                    <h2 className="text-2xl font-bold text-gray-800">Réserver un rendez-vous</h2>
+                <div className="flex flex-col lg:flex-row justify-between items-center mb-6 gap-6">
+                    <h2 className="text-2xl font-bold text-gray-800 text-center lg:text-left">
+                        Réserver un rendez-vous
+                    </h2>
 
-                    <div className="flex items-center bg-gray-50 rounded-lg border border-gray-200 p-1">
+                    <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+                        {/* Today Button */}
                         <button
                             onClick={() => setCurrentDate(new Date())}
-                            className="px-3 py-1 text-sm font-medium text-pink-600 hover:bg-pink-100 rounded-md transition"
+                            className="w-full sm:w-auto px-4 py-2 text-sm font-semibold text-pink-600 bg-pink-50 hover:bg-pink-100 border border-pink-200 rounded-lg transition whitespace-nowrap"
                         >
                             Aujourd'hui
                         </button>
-                        <div className="w-px h-4 bg-gray-300 mx-2"></div>
-                        <button
-                            onClick={prevMonth}
-                            className="p-2 hover:bg-white hover:shadow-sm rounded-md transition text-gray-600"
-                        >
-                            <ChevronLeft size={18} />
-                        </button>
-                        <span className="w-40 text-center font-semibold text-gray-800 capitalize">
-                            {format(currentDate, 'MMMM yyyy', { locale: fr })}
-                        </span>
-                        <button
-                            onClick={nextMonth}
-                            className="p-2 hover:bg-white hover:shadow-sm rounded-md transition text-gray-600"
-                        >
-                            <ChevronRight size={18} />
-                        </button>
+
+                        {/* Month Navigation */}
+                        <div className="flex items-center justify-between bg-gray-50 rounded-lg border border-gray-200 p-1 w-full sm:w-auto">
+                            <button
+                                onClick={prevMonth}
+                                className="p-2 hover:bg-white hover:shadow-sm rounded-md transition text-gray-600"
+                            >
+                                <ChevronLeft size={18} />
+                            </button>
+                            <span className="flex-1 sm:w-40 text-center font-semibold text-gray-800 capitalize text-sm sm:text-base">
+                                {format(currentDate, 'MMMM yyyy', { locale: fr })}
+                            </span>
+                            <button
+                                onClick={nextMonth}
+                                className="p-2 hover:bg-white hover:shadow-sm rounded-md transition text-gray-600"
+                            >
+                                <ChevronRight size={18} />
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -140,16 +190,16 @@ const ClientCalendar = () => {
                                 key={day.toISOString()}
                                 onClick={() => handleDayClick(day)}
                                 className={`
-                                    min-h-[80px] p-2 bg-white flex flex-col
+                                    aspect-square p-1 sm:p-2 bg-white flex flex-col border-b border-r border-gray-100
                                     ${!isCurrentMonth ? 'opacity-40' : ''}
                                     ${isAvailable && isCurrentMonth ? 'cursor-pointer hover:bg-pink-50' : 'cursor-not-allowed'}
-                                    ${isToday ? 'ring-2 ring-pink-500 ring-inset' : ''}
+                                    ${isToday ? 'ring-2 ring-pink-500 ring-inset z-10' : ''}
                                 `}
                             >
                                 <div className="flex items-center justify-between mb-1">
                                     <span className={`text-sm font-medium ${isToday ? 'text-pink-600 font-bold' :
-                                            isPastDay ? 'text-gray-400' :
-                                                'text-gray-700'
+                                        isPastDay ? 'text-gray-400' :
+                                            'text-gray-700'
                                         }`}>
                                         {format(day, 'd')}
                                     </span>
@@ -162,21 +212,21 @@ const ClientCalendar = () => {
                                     <div className="flex-1 flex items-center justify-center">
                                         {isAvailable ? (
                                             <div className="text-center">
-                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${reservationCount === 0 ? 'bg-green-100 text-green-600' :
-                                                        reservationCount <= 2 ? 'bg-green-100 text-green-600' :
-                                                            reservationCount <= 4 ? 'bg-yellow-100 text-yellow-600' :
-                                                                'bg-orange-100 text-orange-600'
+                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${reservationCount < 3 ? 'bg-green-100 text-green-600' :
+                                                    reservationCount === 3 ? 'bg-yellow-100 text-yellow-600' :
+                                                        reservationCount < 6 ? 'bg-orange-100 text-orange-600' :
+                                                            'bg-red-100 text-red-600'
                                                     }`}>
                                                     <Check size={16} />
                                                 </div>
-                                                <p className="text-xs text-gray-500 mt-1">{6 - reservationCount} places</p>
+                                                <p className="text-xs text-gray-500 mt-1">{Math.max(0, 6 - reservationCount)} places</p>
                                             </div>
                                         ) : (
                                             <div className="text-center">
                                                 <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center">
                                                     <Lock size={16} className="text-red-600" />
                                                 </div>
-                                                <p className="text-xs text-red-500 mt-1">Fermé</p>
+                                                <p className="text-xs text-red-500 mt-1 hidden sm:block">Fermé</p>
                                             </div>
                                         )}
                                     </div>
@@ -218,6 +268,10 @@ const ClientCalendar = () => {
                     client={client}
                     onClose={() => setSelectedDate(null)}
                     onSubmit={handleReservationSubmit}
+                    occupiedSlots={reservations
+                        .filter(r => isSameDay(new Date(r.date), selectedDate))
+                        .map(r => r.timeSlot)
+                    }
                 />
             )}
         </div>

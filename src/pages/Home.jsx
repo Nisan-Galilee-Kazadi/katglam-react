@@ -73,15 +73,15 @@ const Home = () => {
                     <div className="mb-4 inline-block px-4 py-1 border border-white/30 rounded-full backdrop-blur-sm animate-fade-in-up">
                         <span className="uppercase tracking-widest text-sm font-medium">Beauty & Event Artist</span>
                     </div>
-                    <h1 className="text-5xl md:text-7xl font-serif font-bold mb-6 drop-shadow-2xl leading-tight animate-fade-in-up delay-100">
+                    <h1 className="text-4xl md:text-6xl font-serif font-bold mb-4 drop-shadow-2xl leading-snug animate-fade-in-up delay-100">
                         Révélez votre <br />
                         <span className="text-pink-300 italic">Éclat Naturel</span>
                     </h1>
-                    <p className="text-lg md:text-2xl mb-8 drop-shadow font-light max-w-2xl mx-auto animate-fade-in-up delay-200">
+                    <p className="text-lg md:text-2xl mb-10 drop-shadow font-light max-w-2xl mx-auto animate-fade-in-up delay-200">
                         L'excellence du maquillage professionnel à Kinshasa. <br />
                         Pour vos mariages, soirées et moments d'exception.
                     </p>
-                    <div className="flex flex-col sm:flex-row gap-4 justify-center animate-fade-in-up delay-300">
+                    <div className="flex flex-col sm:flex-row gap-4 justify-center animate-fade-in-up delay-300 mb-16">
                         <Link
                             to="/portfolio"
                             className="bg-pink-500 hover:bg-pink-600 text-white font-semibold px-8 py-3 rounded-full shadow-lg hover:shadow-pink-500/30 transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2"

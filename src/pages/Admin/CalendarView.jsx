@@ -47,6 +47,16 @@ const CalendarView = () => {
 
     // Handlers
     const handleDayClick = (day) => {
+        const dateKey = day.toISOString();
+        const isLocked = lockedDates.includes(dateKey) || 
+                        CALENDAR_CONFIG.closedDays.includes(day.getDay()) ||
+                        day < new Date().setHours(0, 0, 0, 0);
+        
+        if (isLocked) {
+            // Ne pas ouvrir la modale si la date est verrouillée
+            return;
+        }
+        
         setSelectedDate(day);
     };
 

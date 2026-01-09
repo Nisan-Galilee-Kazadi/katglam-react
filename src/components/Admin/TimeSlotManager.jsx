@@ -36,7 +36,8 @@ const TimeSlotManager = ({
   onUnlockDate,
   onLockTimeSlots,
   lockedSlots = [],
-  isDayLocked = false
+  isDayLocked = false,
+  isAdmin = true // Nouvelle prop pour déterminer si c'est l'admin qui utilise le composant
 }) => {
   const [selectedSlots, setSelectedSlots] = useState([]);
   const [isLocking, setIsLocking] = useState(false);
@@ -55,13 +56,18 @@ const TimeSlotManager = ({
   }, [date, lockedSlots]);
 
   const toggleTimeSlot = (timeSlot, isLocked) => {
-    // Si le créneau est verrouillé et qu'on clique dessus, on le déverrouille
-    if (isLocked) {
+    // Si c'est un client et que le créneau est verrouillé, on ne fait rien
+    if (!isAdmin && isLocked) {
+      return;
+    }
+    
+    // Si c'est l'admin et que le créneau est verrouillé, on le déverrouille
+    if (isAdmin && isLocked) {
       onUnlockDate([timeSlot]);
       return;
     }
     
-    // Sinon, on gère la sélection normale
+    // Gestion de la sélection normale
     setSelectedSlots(prev => {
       if (prev.includes(timeSlot)) {
         return prev.filter(t => t !== timeSlot);
@@ -293,19 +299,33 @@ const TimeSlotManager = ({
                 key={slot.value}
                 onClick={() => toggleTimeSlot(slot.value, status === 'locked')}
                 className={`p-2 rounded-md text-sm flex items-center justify-between transition-colors
-                  ${status === 'locked' ? 'bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 cursor-pointer' : ''}
+                  ${status === 'locked' 
+                    ? isAdmin 
+                      ? 'bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 cursor-pointer' 
+                      : 'bg-gray-100 border border-gray-200 text-gray-400 cursor-not-allowed'
+                    : ''}
                   ${status === 'selected' ? 'bg-blue-50 border-2 border-blue-300 text-blue-700' : ''}
                   ${status === 'disabled' ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''}
                   ${status === 'available' ? 'border border-gray-200 hover:bg-gray-50' : ''}
                 `}
-                disabled={status === 'disabled'}
-                title={status === 'disabled' ? 'Créneau non disponible' : status === 'locked' ? 'Cliquez pour déverrouiller ce créneau' : ''}
+                disabled={status === 'disabled' || (status === 'locked' && !isAdmin)}
+                title={
+                  status === 'disabled' 
+                    ? 'Créneau non disponible' 
+                    : status === 'locked' 
+                      ? isAdmin 
+                        ? 'Cliquez pour déverrouiller ce créneau' 
+                        : 'Créneau indisponible'
+                      : ''
+                }
               >
-                <span>{slot.label}</span>
+                <span className={status === 'locked' && !isAdmin ? 'opacity-50' : ''}>{slot.label}</span>
                 {status === 'locked' && (
                   <div className="flex items-center gap-1">
-                    <span className="text-xs text-red-500">Verrouillé</span>
-                    <Unlock size={14} className="text-red-500 flex-shrink-0" />
+                    <span className={`text-xs ${isAdmin ? 'text-red-500' : 'text-gray-400'}`}>
+                      {isAdmin ? 'Verrouillé' : 'Indisponible'}
+                    </span>
+                    {isAdmin && <Unlock size={14} className="text-red-500 flex-shrink-0" />}
                   </div>
                 )}
                 {status === 'selected' && <Check size={14} className="text-blue-500 flex-shrink-0" />}

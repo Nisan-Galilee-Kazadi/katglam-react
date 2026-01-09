@@ -54,7 +54,14 @@ const TimeSlotManager = ({
     setNotification(null);
   }, [date, lockedSlots]);
 
-  const toggleTimeSlot = (timeSlot) => {
+  const toggleTimeSlot = (timeSlot, isLocked) => {
+    // Si le créneau est verrouillé et qu'on clique dessus, on le déverrouille
+    if (isLocked) {
+      onUnlockDate([timeSlot]);
+      return;
+    }
+    
+    // Sinon, on gère la sélection normale
     setSelectedSlots(prev => {
       if (prev.includes(timeSlot)) {
         return prev.filter(t => t !== timeSlot);
@@ -92,7 +99,7 @@ const TimeSlotManager = ({
 
   const handleUnlockAll = () => {
     try {
-      onUnlockDate();
+      onUnlockDate(lockedSlots);
       setSelectedSlots([]);
       setNotification({
         type: 'success',
@@ -284,18 +291,23 @@ const TimeSlotManager = ({
             return (
               <button
                 key={slot.value}
-                onClick={() => !isDisabled && toggleTimeSlot(slot.value)}
+                onClick={() => toggleTimeSlot(slot.value, status === 'locked')}
                 className={`p-2 rounded-md text-sm flex items-center justify-between transition-colors
-                  ${status === 'locked' ? 'bg-red-50 border border-red-200 text-red-700' : ''}
+                  ${status === 'locked' ? 'bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 cursor-pointer' : ''}
                   ${status === 'selected' ? 'bg-blue-50 border-2 border-blue-300 text-blue-700' : ''}
                   ${status === 'disabled' ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''}
                   ${status === 'available' ? 'border border-gray-200 hover:bg-gray-50' : ''}
                 `}
-                disabled={isDisabled}
-                title={status === 'disabled' ? 'Créneau non disponible' : ''}
+                disabled={status === 'disabled'}
+                title={status === 'disabled' ? 'Créneau non disponible' : status === 'locked' ? 'Cliquez pour déverrouiller ce créneau' : ''}
               >
                 <span>{slot.label}</span>
-                {status === 'locked' && <Lock size={14} className="text-red-500 flex-shrink-0" />}
+                {status === 'locked' && (
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs text-red-500">Verrouillé</span>
+                    <Unlock size={14} className="text-red-500 flex-shrink-0" />
+                  </div>
+                )}
                 {status === 'selected' && <Check size={14} className="text-blue-500 flex-shrink-0" />}
               </button>
             );

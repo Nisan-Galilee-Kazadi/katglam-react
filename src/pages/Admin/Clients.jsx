@@ -78,32 +78,51 @@ const Clients = () => {
         e.preventDefault();
         try {
             const formData = new FormData();
-            // Add all text fields
-            Object.keys(editData).forEach(key => {
-                if (editData[key] !== undefined && editData[key] !== null) {
-                    formData.append(key, editData[key]);
+            
+            // Ajouter tous les champs de texte
+            Object.entries(editData).forEach(([key, value]) => {
+                if (value !== undefined && value !== null && key !== 'photo') {
+                    formData.append(key, value);
                 }
             });
 
-            // Add photo if selected
+            // Ajouter la photo si sélectionnée
             if (photoFile) {
                 formData.append('photo', photoFile);
             }
 
-            await axios.put(`${import.meta.env.VITE_API_URL}/api/users/${selectedClient._id}`, formData);
+            // Configurer les en-têtes pour le téléchargement de fichiers
+            const config = {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                },
+            };
 
-            // Refresh client data
-            fetchClients();
-            const updatedResponse = await axios.get(`${import.meta.env.VITE_API_URL}/api/users`);
-            const updatedClient = updatedResponse.data.find(c => c._id === selectedClient._id);
+            const response = await axios.put(
+                `${import.meta.env.VITE_API_URL}/api/users/${selectedClient._id}`, 
+                formData,
+                config
+            );
+
+            // Mettre à jour l'état avec les nouvelles données
+            const updatedClient = response.data;
             setSelectedClient(updatedClient);
+            setClients(prev => 
+                prev.map(c => c._id === updatedClient._id ? updatedClient : c)
+            );
 
+            // Réinitialiser les états
             setIsEditing(false);
             setPhotoFile(null);
             setPhotoPreview(null);
+            
+            // Rafraîchir la liste des clients
+            fetchClients();
+            
         } catch (error) {
             console.error('Erreur lors de la mise à jour:', error);
-            alert('Erreur lors de la mise à jour du client');
+            const errorMessage = error.response?.data?.message || 'Erreur lors de la mise à jour du client';
+            alert(errorMessage);
         }
     };
 

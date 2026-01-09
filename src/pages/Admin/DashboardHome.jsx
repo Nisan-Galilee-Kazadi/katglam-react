@@ -51,7 +51,7 @@ const DashboardHome = () => {
         <div className="space-y-8 pb-10">
             <div className="flex justify-between items-center">
                 <div>
-                    <h2 className="text-3xl font-bold text-gray-800">Bonjour, Admin !</h2>
+                    <h2 className="text-3xl font-bold text-gray-800">Bonjour, Kat !</h2>
                     <p className="text-gray-500 mt-1">Voici ce qui se passe dans votre salon aujourd'hui.</p>
                 </div>
                 <div className="flex space-x-3">

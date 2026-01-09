@@ -1,103 +1,169 @@
 import React, { useState, useEffect } from 'react';
-import { format, isBefore, isAfter, addDays } from 'date-fns';
+import { format, isBefore, isAfter, isSameDay, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { X, Clock, Lock, Unlock, Check, Calendar as CalendarIcon, Clock as ClockIcon, AlertCircle } from 'lucide-react';
+import { X, Clock, Lock, Unlock, Check, Calendar as CalendarIcon, Clock as ClockIcon, AlertCircle, LockKeyhole, UnlockKeyhole } from 'lucide-react';
 import { CALENDAR_CONFIG } from '../../pages/Admin/CalendarConfig';
+import { isTimeSlotLocked, lockTimeSlot, unlockTimeSlot } from '../../services/localStorageService';
 
-// Helper function to check if a time slot is in the past
-const isPastDate = (date) => {
-  const now = new Date();
-  return isBefore(date, now) && !isSameDay(date, now);
+// Vérifie si un créneau est verrouillé pour une date donnée
+const isSlotLocked = (date, timeSlot) => {
+  return isTimeSlotLocked(date.toISOString(), timeSlot);
 };
 
-// Helper function to check if two dates are the same day
-const isSameDay = (date1, date2) => {
-  return (
-    date1.getFullYear() === date2.getFullYear() &&
-    date1.getMonth() === date2.getMonth() &&
-    date1.getDate() === date2.getDate()
-  );
-};
-
-// Helper function to check if a time slot is available (not in the past and within working hours)
+// Vérifie si un créneau est disponible (pas dans le passé et pas verrouillé)
 const isTimeSlotAvailable = (date, timeSlot) => {
   const [hours, minutes] = timeSlot.split(':').map(Number);
   const slotDate = new Date(date);
   slotDate.setHours(hours, minutes, 0, 0);
   
   const now = new Date();
-  return isAfter(slotDate, now) || isSameDay(slotDate, now);
+  const isInFuture = isAfter(slotDate, now) || isSameDay(slotDate, now);
+  const isLocked = isSlotLocked(date, timeSlot);
+  
+  return isInFuture && !isLocked;
+};
+
+// Formate une date pour l'affichage
+const formatDateDisplay = (date) => {
+  return format(date, 'EEEE d MMMM yyyy', { locale: fr });
 };
 
 const TimeSlotManager = ({ 
   date, 
-  onClose, 
-  onLockDate, 
-  onUnlockDate,
-  onLockTimeSlots,
-  lockedSlots = [],
-  isDayLocked = false,
-  isAdmin = true // Nouvelle prop pour déterminer si c'est l'admin qui utilise le composant
+  onClose,
+  onUpdate, // Callback pour notifier les mises à jour
+  isAdmin = true
 }) => {
   const [selectedSlots, setSelectedSlots] = useState([]);
-  const [isLocking, setIsLocking] = useState(false);
-  const [viewMode, setViewMode] = useState('select'); // 'select' or 'manage'
+  const [isProcessing, setIsProcessing] = useState(false);
   const [notification, setNotification] = useState(null);
   
-  // Initialize selected slots and reset view mode when date changes
+  // Charger les créneaux verrouillés au montage
   useEffect(() => {
-    if (lockedSlots && lockedSlots.length > 0) {
-      setSelectedSlots([...lockedSlots]);
-    } else {
-      setSelectedSlots([]);
-    }
-    setViewMode('select');
-    setNotification(null);
-  }, [date, lockedSlots]);
-
-  const toggleTimeSlot = (timeSlot, isLocked) => {
-    // Si c'est un client et que le créneau est verrouillé, on ne fait rien
-    if (!isAdmin && isLocked) {
-      return;
-    }
+    loadLockedSlots();
+  }, [date]);
+  
+  // Charger les créneaux verrouillés pour la date sélectionnée
+  const loadLockedSlots = () => {
+    const dateKey = date.toISOString();
+    const lockedSlots = CALENDAR_CONFIG.timeSlots
+      .filter(slot => isTimeSlotLocked(dateKey, slot.value))
+      .map(slot => slot.value);
     
-    // Si c'est l'admin et que le créneau est verrouillé, on le déverrouille
-    if (isAdmin && isLocked) {
-      onUnlockDate([timeSlot]);
-      return;
+    setSelectedSlots(lockedSlots);
+  };
+  
+  // Notifier le composant parent des mises à jour
+  const notifyUpdate = () => {
+    if (onUpdate) {
+      onUpdate();
     }
-    
-    // Gestion de la sélection normale
-    setSelectedSlots(prev => {
-      if (prev.includes(timeSlot)) {
-        return prev.filter(t => t !== timeSlot);
-      } else {
-        return [...prev, timeSlot];
-      }
-    });
   };
 
-  const handleLockSelected = () => {
-    if (selectedSlots.length === 0) {
+  // Basculer l'état de verrouillage d'un créneau
+  const toggleTimeSlot = async (timeSlot) => {
+    if (!isAdmin) return; // Seul l'admin peut modifier les créneaux
+    
+    setIsProcessing(true);
+    const dateKey = date.toISOString();
+    
+    try {
+      if (isSlotLocked(date, timeSlot)) {
+        // Déverrouiller le créneau
+        await unlockTimeSlot(dateKey, timeSlot);
+        setNotification({
+          type: 'success',
+          message: 'Créneau déverrouillé avec succès.'
+        });
+      } else {
+        // Verrouiller le créneau
+        await lockTimeSlot(dateKey, timeSlot);
+        setNotification({
+          type: 'success',
+          message: 'Créneau verrouillé avec succès.'
+        });
+      }
+      
+      // Mettre à jour l'interface
+      loadLockedSlots();
+      notifyUpdate();
+    } catch (error) {
+      console.error('Erreur lors de la mise à jour du créneau:', error);
       setNotification({
         type: 'error',
-        message: 'Veuillez sélectionner au moins un créneau horaire.'
+        message: 'Une erreur est survenue. Veuillez réessayer.'
       });
-      return;
+    } finally {
+      setIsProcessing(false);
     }
+  };
+  
+  // Verrouiller tous les créneaux de la journée
+  const lockAllSlots = async () => {
+    if (!isAdmin) return;
     
-    setIsLocking(true);
+    setIsProcessing(true);
+    const dateKey = date.toISOString();
+    
     try {
-      onLockTimeSlots(selectedSlots);
+      // Verrouiller tous les créneaux disponibles
+      for (const slot of CALENDAR_CONFIG.timeSlots) {
+        if (!isSlotLocked(date, slot.value)) {
+          await lockTimeSlot(dateKey, slot.value);
+        }
+      }
+      
       setNotification({
         type: 'success',
-        message: `Créneau(x) verrouillé(s) avec succès pour le ${format(date, 'dd/MM/yyyy')}`
+        message: 'Tous les créneaux ont été verrouillés pour cette journée.'
       });
+      
+      // Mettre à jour l'interface
+      loadLockedSlots();
+      notifyUpdate();
     } catch (error) {
+      console.error('Erreur lors du verrouillage des créneaux:', error);
       setNotification({
         type: 'error',
-        message: 'Erreur lors du verrouillage des créneaux. Veuillez réessayer.'
+        message: 'Erreur lors du verrouillage des créneaux.'
       });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+  
+  // Déverrouiller tous les créneaux de la journée
+  const unlockAllSlots = async () => {
+    if (!isAdmin) return;
+    
+    setIsProcessing(true);
+    const dateKey = date.toISOString();
+    
+    try {
+      // Déverrouiller tous les créneaux
+      for (const slot of CALENDAR_CONFIG.timeSlots) {
+        if (isSlotLocked(date, slot.value)) {
+          await unlockTimeSlot(dateKey, slot.value);
+        }
+      }
+      
+      setNotification({
+        type: 'success',
+        message: 'Tous les créneaux ont été déverrouillés pour cette journée.'
+      });
+      
+      // Mettre à jour l'interface
+      loadLockedSlots();
+      notifyUpdate();
+    } catch (error) {
+      console.error('Erreur lors du déverrouillage des créneaux:', error);
+      setNotification({
+        type: 'error',
+        message: 'Erreur lors du déverrouillage des créneaux.'
+      });
+    } finally {
+      setIsProcessing(false);
+    }
     } finally {
       setIsLocking(false);
     }
@@ -186,112 +252,260 @@ const TimeSlotManager = ({
   
   const availableSlots = CALENDAR_CONFIG.timeSlots.filter(
     slot => !isSlotDisabled(slot.value)
-  ).length;
   
-  const lockedSlotsCount = lockedSlots.length;
-  const selectedSlotsCount = selectedSlots.length;
+  try {
+    // Verrouiller tous les créneaux disponibles
+    for (const slot of CALENDAR_CONFIG.timeSlots) {
+      if (!isSlotLocked(date, slot.value)) {
+        await lockTimeSlot(dateKey, slot.value);
+      }
+    }
+    
+    setNotification({
+      type: 'success',
+      message: 'Tous les créneaux ont été verrouillés pour cette journée.'
+    });
+    
+    // Mettre à jour l'interface
+    loadLockedSlots();
+    notifyUpdate();
+  } catch (error) {
+    console.error('Erreur lors du verrouillage des créneaux:', error);
+    setNotification({
+      type: 'error',
+      message: 'Erreur lors du verrouillage des créneaux.'
+    });
+  } finally {
+    setIsProcessing(false);
+  }
+};
 
-  return (
-    <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
-      <div className="flex justify-between items-start mb-4">
+// Déverrouiller tous les créneaux de la journée
+const unlockAllSlots = async () => {
+  if (!isAdmin) return;
+  
+  setIsProcessing(true);
+  const dateKey = date.toISOString();
+  
+  try {
+    // Déverrouiller tous les créneaux
+    for (const slot of CALENDAR_CONFIG.timeSlots) {
+      if (isSlotLocked(date, slot.value)) {
+        await unlockTimeSlot(dateKey, slot.value);
+      }
+    }
+    
+    setNotification({
+      type: 'success',
+      message: 'Tous les créneaux ont été déverrouillés pour cette journée.'
+    });
+    
+    // Mettre à jour l'interface
+    loadLockedSlots();
+    notifyUpdate();
+  } catch (error) {
+    console.error('Erreur lors du déverrouillage des créneaux:', error);
+    setNotification({
+      type: 'error',
+      message: 'Erreur lors du déverrouillage des créneaux.'
+    });
+  } finally {
+    setIsProcessing(false);
+  }
+};
+
+const handleUnlockAll = () => {
+  try {
+    onUnlockDate(lockedSlots);
+    setSelectedSlots([]);
+    setNotification({
+      type: 'success',
+      message: 'Tous les créneaux ont été déverrouillés avec succès.'
+    });
+  } catch (error) {
+    setNotification({
+      type: 'error',
+      message: 'Erreur lors du déverrouillage des créneaux. Veuillez réessayer.'
+    });
+  }
+};
+
+const handleLockAllDay = () => {
+  const allTimeSlots = CALENDAR_CONFIG.timeSlots
+    .map(slot => slot.value)
+    .filter(timeSlot => isTimeSlotAvailable(date, timeSlot));
+  
+  if (allTimeSlots.length === 0) {
+    setNotification({
+      type: 'warning',
+      message: 'Aucun créneau disponible à verrouiller pour cette date.'
+    });
+    return;
+  }
+  
+  setSelectedSlots(allTimeSlots);
+  setNotification({
+    type: 'info',
+    message: 'Tous les créneaux disponibles ont été sélectionnés. Cliquez sur "Verrouiller les créneaux" pour confirmer.'
+  });
+};
+
+const isSlotLocked = (timeSlot) => {
+  return lockedSlots.includes(timeSlot);
+};
+
+const isSlotSelected = (timeSlot) => {
+  return selectedSlots.includes(timeSlot);
+};
+
+const isSlotDisabled = (timeSlot) => {
+  return isPastDate(date) || !isTimeSlotAvailable(date, timeSlot);
+};
+
+const getSlotStatus = (timeSlot) => {
+  if (isSlotLocked(timeSlot)) return 'locked';
+  if (isSlotSelected(timeSlot)) return 'selected';
+  if (isSlotDisabled(timeSlot)) return 'disabled';
+  return 'available';
+};
+
+const selectAllSlots = () => {
+  const availableSlots = CALENDAR_CONFIG.timeSlots
+    .map(slot => slot.value)
+    .filter(timeSlot => !isSlotDisabled(timeSlot) && !isSlotLocked(timeSlot));
+  
+  if (availableSlots.length === 0) {
+    setNotification({
+      type: 'warning',
+      message: 'Aucun créneau disponible à sélectionner.'
+    });
+    return;
+  }
+  
+  setSelectedSlots(prev => {
+    // If all available slots are already selected, deselect all
+    const allSelected = availableSlots.every(slot => prev.includes(slot));
+    if (allSelected) {
+      return prev.filter(slot => !availableSlots.includes(slot));
+    }
+    // Otherwise, add all available slots
+    return [...new Set([...prev, ...availableSlots])];
+  });
+};
+
+if (!date) return null;
+
+const availableSlots = CALENDAR_CONFIG.timeSlots.filter(
+  slot => !isSlotDisabled(slot.value)
+).length;
+
+const lockedSlotsCount = lockedSlots.length;
+const selectedSlotsCount = selectedSlots.length;
+
+return (
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+      {/* Header */}
+      <div className="sticky top-0 bg-white p-4 border-b border-gray-200 flex justify-between items-center">
         <div>
-          <h3 className="text-lg font-bold text-gray-800">
+          <h3 className="text-lg font-semibold text-gray-900">
             Gestion des créneaux
           </h3>
-          <p className="text-sm text-gray-600">
-            {format(date, 'EEEE d MMMM yyyy', { locale: fr })}
+          <p className="text-sm text-gray-500">
+            {formatDateDisplay(date)}
           </p>
         </div>
         <button 
           onClick={onClose}
-          className="text-gray-400 hover:text-gray-600 p-1 -mt-1 -mr-1"
-          aria-label="Fermer"
+          className="text-gray-400 hover:text-gray-500 focus:outline-none"
+          disabled={isProcessing}
         >
-          <X size={20} />
+          <X className="h-6 w-6" />
         </button>
       </div>
-
-      {/* Notification Area */}
-      {notification && (
-        <div className={`mb-4 p-3 rounded-md text-sm ${
-          notification.type === 'error' ? 'bg-red-50 text-red-700' :
-          notification.type === 'success' ? 'bg-green-50 text-green-700' :
-          notification.type === 'warning' ? 'bg-yellow-50 text-yellow-700' :
-          'bg-blue-50 text-blue-700'
-        }`}>
-          <div className="flex items-center gap-2">
-            {notification.type === 'error' && <AlertCircle size={16} />}
-            {notification.type === 'success' && <Check size={16} />}
-            {notification.type === 'warning' && <AlertCircle size={16} />}
-            <span>{notification.message}</span>
-          </div>
-        </div>
-      )}
-
-      {/* Day Status */}
-      <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <CalendarIcon size={18} className="text-gray-500" />
-            <span className="font-medium">Statut de la journée</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">
-              {availableSlots} créneaux disponibles
-            </span>
-            <span className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800">
-              {lockedSlotsCount} créneaux bloqués
-            </span>
-          </div>
-        </div>
-        
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={handleLockAllDay}
-            className={`px-3 py-2 text-sm rounded-md flex-1 flex items-center justify-center gap-2 ${
-              isDayLocked 
-                ? 'bg-green-100 text-green-700 hover:bg-green-200' 
-                : 'bg-red-100 text-red-700 hover:bg-red-200'
+      
+      {/* Content */}
+      <div className="p-4">
+        {/* Notification */}
+        {notification && (
+          <div 
+            className={`mb-4 p-3 rounded-md ${
+              notification.type === 'error' 
+                ? 'bg-red-50 text-red-700' 
+                : 'bg-green-50 text-green-700'
             }`}
           >
-            {isDayLocked ? (
-              <>
-                <Unlock size={14} />
-                <span>Déverrouiller la journée</span>
-              </>
-            ) : (
-              <>
-                <Lock size={14} />
-                <span>Bloquer toute la journée</span>
-              </>
-            )}
-          </button>
-          
-          <button
-            onClick={selectAllSlots}
-            className="px-3 py-2 text-sm bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-md flex items-center justify-center gap-2 flex-1"
-          >
-            <Check size={14} />
-            <span>Tout sélectionner</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Time Slots Grid */}
-      <div className="mb-6">
-        <div className="flex justify-between items-center mb-3">
-          <h4 className="font-medium text-gray-700 flex items-center gap-2">
-            <ClockIcon size={16} className="text-gray-500" />
-            Créneaux horaires
+            <div className="flex items-center">
+              {notification.type === 'error' ? (
+                <AlertCircle className="h-5 w-5 mr-2" />
+              ) : (
+                <Check className="h-5 w-5 mr-2" />
+              )}
+              <span className="text-sm">{notification.message}</span>
+            </div>
+          </div>
+        )}
+        
+        {/* Quick Actions */}
+        {isAdmin && (
+          <div className="mb-6 space-y-2">
+            <h4 className="text-sm font-medium text-gray-700">Actions rapides</h4>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={lockAllSlots}
+                disabled={isProcessing}
+                className="flex items-center justify-center space-x-2 px-3 py-2 bg-red-50 text-red-700 border border-red-200 rounded-md text-sm font-medium hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <LockKeyhole className="h-4 w-4" />
+                <span>Tout verrouiller</span>
+              </button>
+              <button
+                onClick={unlockAllSlots}
+                disabled={isProcessing}
+                className="flex items-center justify-center space-x-2 px-3 py-2 bg-green-50 text-green-700 border border-green-200 rounded-md text-sm font-medium hover:bg-green-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <UnlockKeyhole className="h-4 w-4" />
+                <span>Tout déverrouiller</span>
+              </button>
+            </div>
+          </div>
+        )}
+        
+        {/* Time Slots */}
+        <div className="space-y-2">
+          <h4 className="text-sm font-medium text-gray-700 mb-2">
+            {isAdmin ? 'Gestion des créneaux' : 'Créneaux disponibles'}
           </h4>
-          <span className="text-sm text-gray-500">
-            {selectedSlotsCount} sélectionné(s)
-          </span>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2 max-h-60 overflow-y-auto p-2 border rounded-lg">
-          {CALENDAR_CONFIG.timeSlots.map((slot) => {
-            const status = getSlotStatus(slot.value);
+          
+          <div className="grid grid-cols-2 gap-2">
+            {CALENDAR_CONFIG.timeSlots.map((slot) => {
+              const locked = isSlotLocked(date, slot.value);
+              const available = isTimeSlotAvailable(date, slot.value);
+              
+              return (
+                <button
+                  key={slot.value}
+                  onClick={() => toggleTimeSlot(slot.value)}
+                  disabled={isProcessing || (!isAdmin && !available)}
+                  className={`p-3 rounded-lg border text-sm font-medium transition-all flex items-center justify-between
+                    ${locked 
+                      ? 'bg-red-50 border-red-200 text-red-700' 
+                      : available 
+                        ? 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50' 
+                        : 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'}
+                    ${isProcessing ? 'opacity-70' : ''}
+                  `}
+                  title={!available && !locked ? "Créneau non disponible" : "Cliquez pour modifier"}
+                >
+                  <span>{slot.label}</span>
+                  {locked ? (
+                    <Lock className="h-4 w-4 ml-2 flex-shrink-0" />
+                  ) : available ? (
+                    <Unlock className="h-4 w-4 ml-2 flex-shrink-0 text-gray-400" />
+                  ) : null}
+                </button>
+              );
+            })}
             const isDisabled = status === 'disabled' || status === 'locked';
             
             return (

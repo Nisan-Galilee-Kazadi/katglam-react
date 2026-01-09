@@ -1,3 +1,8 @@
+// Format: YYYY-MM-DD
+const formatDateKey = (date) => {
+    return date.toISOString().split('T')[0];
+};
+
 export const CALENDAR_CONFIG = {
     // Limites de réservations par statut
     limits: {
@@ -31,11 +36,73 @@ export const CALENDAR_CONFIG = {
     ],
 };
 
+// Fonction utilitaire pour déterminer le statut en fonction du nombre de réservations
 export const getStatusForReservations = (count) => {
-    // Logic from legacy cell.js
     if (count === 0) return 'available';
-    if (count < 3) return 'available'; // 1-2
+    if (count <= 2) return 'available';
     if (count === 3) return 'half';
-    if (count < 6) return 'almost-full'; // 4-5
-    return 'full'; // 6+
+    if (count <= 5) return 'almost-full';
+    return 'full';
+};
+
+// Vérifie si un créneau horaire est verrouillé
+export const isTimeSlotLocked = (date, timeSlot, lockedSlots) => {
+    if (!lockedSlots) return false;
+    const dateKey = formatDateKey(date);
+    return lockedSlots[dateKey]?.includes(timeSlot) || false;
+};
+
+// Vérifie si tous les créneaux d'une journée sont verrouillés
+export const isDayFullyLocked = (date, lockedSlots) => {
+    if (!lockedSlots) return false;
+    const dateKey = formatDateKey(date);
+    return lockedSlots[dateKey]?.length === CALENDAR_CONFIG.timeSlots.length;
+};
+
+// Verrouille un créneau horaire
+export const lockTimeSlot = (date, timeSlot, lockedSlots) => {
+    const dateKey = formatDateKey(date);
+    const updated = { ...lockedSlots };
+    
+    if (!updated[dateKey]) {
+        updated[dateKey] = [];
+    }
+    
+    if (!updated[dateKey].includes(timeSlot)) {
+        updated[dateKey] = [...updated[dateKey], timeSlot];
+    }
+    
+    return updated;
+};
+
+// Déverrouille un créneau horaire
+export const unlockTimeSlot = (date, timeSlot, lockedSlots) => {
+    const dateKey = formatDateKey(date);
+    if (!lockedSlots[dateKey]) return lockedSlots;
+    
+    const updated = { ...lockedSlots };
+    updated[dateKey] = updated[dateKey].filter(slot => slot !== timeSlot);
+    
+    // Supprimer la clé de date si aucun créneau n'est verrouillé
+    if (updated[dateKey].length === 0) {
+        delete updated[dateKey];
+    }
+    
+    return updated;
+};
+
+// Bascule le verrouillage d'un créneau horaire
+export const toggleTimeSlotLock = (date, timeSlot, lockedSlots) => {
+    if (isTimeSlotLocked(date, timeSlot, lockedSlots)) {
+        return unlockTimeSlot(date, timeSlot, lockedSlots);
+    } else {
+        return lockTimeSlot(date, timeSlot, lockedSlots);
+    }
+};
+
+// Vérifie si une date est complètement verrouillée (tous les créneaux)
+export const isDateLocked = (date, lockedSlots) => {
+    if (!lockedSlots) return false;
+    const dateKey = formatDateKey(date);
+    return lockedSlots[dateKey]?.length === CALENDAR_CONFIG.timeSlots.length;
 };

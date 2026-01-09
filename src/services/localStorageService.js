@@ -84,39 +84,102 @@ const reservationService = {
     }
 };
 
+// Time Slot Management
+
 /**
- * Get locked dates from localStorage
- * @returns {Array<string>} Array of ISO date strings
+ * Get locked time slots from localStorage
+ * @returns {Object} Object with dates as keys and arrays of time slots as values
  */
-export const getLockedDates = () => {
-    return JSON.parse(localStorage.getItem('locked_dates') || '[]');
+export const getLockedTimeSlots = () => {
+    return JSON.parse(localStorage.getItem('locked_time_slots') || '{}');
 };
 
 /**
- * Lock a specific date
+ * Save locked time slots to localStorage
+ * @param {Object} lockedSlots - Object with dates as keys and arrays of time slots as values
+ */
+export const saveLockedTimeSlots = (lockedSlots) => {
+    localStorage.setItem('locked_time_slots', JSON.stringify(lockedSlots));
+};
+
+/**
+ * Get locked dates from localStorage (legacy function, kept for backward compatibility)
+ * @returns {Array<string>} Array of ISO date strings
+ * @deprecated Use getLockedTimeSlots instead for time slot management
+ */
+export const getLockedDates = () => {
+    return [];
+};
+
+/**
+ * Lock a specific date (legacy function, kept for backward compatibility)
  * @param {string} dateISO - ISO string of the date to lock
- * @returns {Array<string>} Updated list of locked dates
+ * @returns {Array<string>} Empty array (legacy support)
+ * @deprecated Use lockTimeSlot instead for time slot management
  */
 export const lockDate = (dateISO) => {
     const locked = getLockedDates();
     if (!locked.includes(dateISO)) {
         const updated = [...locked, dateISO];
         localStorage.setItem('locked_dates', JSON.stringify(updated));
-        return updated;
     }
-    return locked;
+    return [];
 };
 
 /**
- * Unlock a specific date
+ * Unlock a specific date (legacy function, kept for backward compatibility)
  * @param {string} dateISO - ISO string of the date to unlock
- * @returns {Array<string>} Updated list of locked dates
+ * @returns {Array<string>} Empty array (legacy support)
+ * @deprecated Use unlockTimeSlot instead for time slot management
  */
 export const unlockDate = (dateISO) => {
-    const locked = getLockedDates();
-    const updated = locked.filter(d => d !== dateISO);
-    localStorage.setItem('locked_dates', JSON.stringify(updated));
-    return updated;
+    return [];
+};
+
+/**
+ * Lock a specific time slot
+ * @param {Date} date - Date object
+ * @param {string} timeSlot - Time slot to lock (e.g., '09:00')
+ * @returns {Object} Updated locked time slots
+ */
+export const lockTimeSlot = (date, timeSlot) => {
+    const dateKey = date.toISOString().split('T')[0];
+    const lockedSlots = getLockedTimeSlots();
+    
+    if (!lockedSlots[dateKey]) {
+        lockedSlots[dateKey] = [];
+    }
+    
+    if (!lockedSlots[dateKey].includes(timeSlot)) {
+        lockedSlots[dateKey].push(timeSlot);
+        saveLockedTimeSlots(lockedSlots);
+    }
+    
+    return { ...lockedSlots };
+};
+
+/**
+ * Unlock a specific time slot
+ * @param {Date} date - Date object
+ * @param {string} timeSlot - Time slot to unlock (e.g., '09:00')
+ * @returns {Object} Updated locked time slots
+ */
+export const unlockTimeSlot = (date, timeSlot) => {
+    const dateKey = date.toISOString().split('T')[0];
+    const lockedSlots = getLockedTimeSlots();
+    
+    if (lockedSlots[dateKey]) {
+        lockedSlots[dateKey] = lockedSlots[dateKey].filter(slot => slot !== timeSlot);
+        
+        // Remove the date key if no more time slots are locked
+        if (lockedSlots[dateKey].length === 0) {
+            delete lockedSlots[dateKey];
+        }
+        
+        saveLockedTimeSlots(lockedSlots);
+    }
+    
+    return { ...lockedSlots };
 };
 
 // Export individual functions for easier destructuring

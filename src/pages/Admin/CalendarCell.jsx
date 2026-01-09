@@ -1,16 +1,29 @@
-import React from 'react';
-import { format, isSameMonth, isToday } from 'date-fns';
-import { Lock } from 'lucide-react';
-import { getStatusForReservations } from './CalendarConfig';
+import React, { useState } from 'react';
+import { format, isSameMonth, isToday, isSameDay } from 'date-fns';
+import { Lock, Unlock, Clock } from 'lucide-react';
+import { getStatusForReservations, isTimeSlotLocked } from './CalendarConfig';
+import { motion, AnimatePresence } from 'framer-motion';
 
-const CalendarCell = ({ date, monthStart, reservations = [], isClosed, onClick }) => {
+const CalendarCell = ({ date, monthStart, reservations = [], isClosed, onClick, lockedTimeSlots = {} }) => {
     const isCurrentMonth = isSameMonth(date, monthStart);
     const count = reservations.length;
-
-    // Check if date is in the past (before today, ignoring time)
+    const [showTimeSlots, setShowTimeSlots] = useState(false);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const isPast = date < today;
+    const isToday = isSameDay(date, new Date());
+    
+    // Get locked time slots for this date
+    const dateKey = date.toISOString().split('T')[0];
+    const dayLockedTimeSlots = lockedTimeSlots[dateKey] || [];
+    
+    // Toggle time slots visibility
+    const toggleTimeSlots = (e) => {
+        e.stopPropagation();
+        setShowTimeSlots(!showTimeSlots);
+    };
+
+    // Check if date is in the past (before today, ignoring time)
 
     let status = isClosed ? 'closed' : getStatusForReservations(count);
 
@@ -60,33 +73,47 @@ const CalendarCell = ({ date, monthStart, reservations = [], isClosed, onClick }
     };
 
     return (
-        <div
-            onClick={handleClick}
-            className={`
-                relative min-h-[80px] p-2 border transition-all duration-200 
+        <div 
+            className={`relative min-h-[80px] p-2 border transition-all duration-200 
                 ${!isCurrentMonth ? 'opacity-40 bg-gray-50' : currentStyle}
                 ${!isClosed && !isPast && isCurrentMonth ? 
-                    'hover:scale-[1.02] hover:shadow-md cursor-pointer' : 
-                    'opacity-80 cursor-not-allowed'}
+                    'hover:scale-[1.02] hover:shadow-md' : 
+                    'opacity-80'}
                 flex flex-col
             `}
-            title={isClosed || isPast ? "Ce créneau n'est pas disponible" : "Cliquez pour sélectionner"}
+            onClick={!isPast && !isClosed ? handleClick : undefined}
         >
-            {/* Header: Day Number + Indicator */}
+            {/* Header: Day Number + Indicators */}
             <div className="flex justify-between items-start">
-                <span className={`
-                    text-sm font-medium w-6 h-6 flex items-center justify-center rounded-full
-                    ${isToday(date) ? 'bg-pink-500 text-white shadow-sm' : 'text-gray-700'}
-                `}>
+                <span 
+                    className={`
+                        text-sm font-medium w-6 h-6 flex items-center justify-center rounded-full
+                        ${isToday ? 'bg-pink-500 text-white shadow-sm' : 'text-gray-700'}
+                    `}
+                >
                     {format(date, 'd')}
                 </span>
 
-                {/* Status Indicator Dot */}
-                {(!isClosed && !isPast) && (
-                    <div className={`w-3 h-3 rounded-full ${currentIndicator}`}
-                        title={`${count} réservations`}
-                    />
-                )}
+                <div className="flex items-center gap-1">
+                    {/* Lock/Unlock indicator */}
+                    {!isPast && !isClosed && (
+                        <button 
+                            onClick={toggleTimeSlots}
+                            className="p-1 rounded-full hover:bg-gray-200 transition-colors"
+                            title="Gérer les créneaux"
+                        >
+                            <Clock size={14} className="text-gray-500" />
+                        </button>
+                    )}
+
+                    {/* Status Indicator Dot */}
+                    {!isClosed && !isPast && (
+                        <div 
+                            className={`w-3 h-3 rounded-full ${currentIndicator}`}
+                            title={`${count} réservations`}
+                        />
+                    )}
+                </div>
             </div>
 
             {/* Content: Reservation Count Text */}
@@ -95,6 +122,57 @@ const CalendarCell = ({ date, monthStart, reservations = [], isClosed, onClick }
                     {count} rés.
                 </div>
             )}
+
+            {/* Time Slots Popover */}
+            <AnimatePresence>
+                {showTimeSlots && !isClosed && !isPast && (
+                    <motion.div 
+                        className="absolute z-10 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-2"
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ duration: 0.2 }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="text-xs font-medium text-gray-700 mb-2">
+                            Créneaux du {format(date, 'dd/MM/yyyy')}
+                        </div>
+                        <div className="space-y-1 max-h-40 overflow-y-auto">
+                            {CALENDAR_CONFIG.timeSlots.map((slot) => {
+                                const isLocked = isTimeSlotLocked(date, slot.value, lockedTimeSlots);
+                                return (
+                                    <div 
+                                        key={slot.value}
+                                        className={`flex items-center justify-between p-1 px-2 rounded text-xs ${isLocked ? 'bg-red-50' : 'hover:bg-gray-50'}`}
+                                    >
+                                        <span className={isLocked ? 'line-through text-gray-500' : ''}>
+                                            {slot.label}
+                                        </span>
+                                        <button 
+                                            className="p-1 rounded-full hover:bg-gray-200"
+                                            onClick={() => {
+                                                // This will be handled by the parent component
+                                                // We'll use event delegation instead
+                                                const event = new CustomEvent('toggleTimeSlotLock', {
+                                                    detail: { date, timeSlot: slot.value }
+                                                });
+                                                window.dispatchEvent(event);
+                                            }}
+                                            title={isLocked ? 'Déverrouiller' : 'Verrouiller'}
+                                        >
+                                            {isLocked ? (
+                                                <Lock size={12} className="text-red-500" />
+                                            ) : (
+                                                <Unlock size={12} className="text-green-500" />
+                                            )}
+                                        </button>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {/* Labels */}
             {isClosed && !isPast && (

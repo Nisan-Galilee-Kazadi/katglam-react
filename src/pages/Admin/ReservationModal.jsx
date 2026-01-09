@@ -1,11 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { format } from 'date-fns';
+import { format, isSameDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { X, Plus, Trash, User, Phone, Mail, MapPin, Clock, Palette, StickyNote, ArrowRight, ArrowLeft, Check, Lock, Loader2, Search } from 'lucide-react';
-import { CALENDAR_CONFIG } from './CalendarConfig';
+import { X, Plus, Trash, User, Phone, Mail, MapPin, Clock, Palette, StickyNote, ArrowRight, ArrowLeft, Check, Lock, Loader2, Search, LockOpen } from 'lucide-react';
+import { CALENDAR_CONFIG, isTimeSlotLocked, isDayFullyLocked } from './CalendarConfig';
 import axios from 'axios';
 
-const ReservationModal = ({ date, reservations = [], onClose, onAddReservation, onDeleteReservation, onLockDate, isLocked }) => {
+const ReservationModal = ({ 
+    date, 
+    reservations = [], 
+    onClose, 
+    onAddReservation, 
+    onDeleteReservation, 
+    lockedTimeSlots = {}, 
+    onToggleTimeSlotLock,
+    onToggleAllTimeSlots
+}) => {
     const [showForm, setShowForm] = useState(false);
     const [step, setStep] = useState(1);
     const [formData, setFormData] = useState({
@@ -44,8 +53,12 @@ const ReservationModal = ({ date, reservations = [], onClose, onAddReservation, 
             setClientSearch('');
             setFormData({ clientName: '', phone: '', email: '', address: '', timeSlot: '', service: '', notes: '' });
             setErrors({});
+            
+            // Check if all time slots are locked for this date
+            const allLocked = isDayFullyLocked(date, lockedTimeSlots);
+            setIsLocked(allLocked);
         }
-    }, [date]);
+    }, [date, lockedTimeSlots]);
 
     const handleInputChange = (field, value) => {
         setFormData(prev => ({ ...prev, [field]: value }));
@@ -135,6 +148,8 @@ const ReservationModal = ({ date, reservations = [], onClose, onAddReservation, 
         }
     };
 
+    const [isLocked, setIsLocked] = useState(false);
+
     if (!date) return null;
 
     return (
@@ -143,10 +158,26 @@ const ReservationModal = ({ date, reservations = [], onClose, onAddReservation, 
 
                 {/* Header */}
                 <div className="flex justify-between items-center p-4 border-b border-gray-100 bg-pink-50/30 rounded-t-xl">
-                    <h3 className="text-xl font-bold text-pink-600 capitalize flex items-center gap-2">
+                    <div className="flex items-center gap-2">
+                    <h3 className="text-xl font-bold text-pink-600 capitalize">
                         {format(date, 'EEEE d MMMM yyyy', { locale: fr })}
-                        {isLocked && <Lock size={16} className="text-red-500" />}
                     </h3>
+                    <button 
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onToggleAllTimeSlots();
+                            setIsLocked(!isLocked);
+                        }}
+                        className="p-1 rounded-full hover:bg-gray-100 transition-colors"
+                        title={isLocked ? 'Déverrouiller tous les créneaux' : 'Tout verrouiller'}
+                    >
+                        {isLocked ? (
+                            <LockOpen size={18} className="text-red-500" />
+                        ) : (
+                            <Lock size={18} className="text-gray-400 hover:text-gray-600" />
+                        )}
+                    </button>
+                </div>
                     <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-full transition text-gray-500">
                         <X size={24} />
                     </button>
@@ -174,9 +205,25 @@ const ReservationModal = ({ date, reservations = [], onClose, onAddReservation, 
                                     <div key={resa._id || resa.id} className="bg-white border-l-4 border-pink-500 shadow-sm rounded-r-lg p-4 group relative hover:shadow-md transition-all">
                                         <div className="flex justify-between items-start mb-2">
                                             <h4 className="font-semibold text-gray-800">{resa.clientName}</h4>
+                                            <div className="flex items-center gap-1">
                                             <span className="bg-pink-100 text-pink-700 text-xs font-bold px-2 py-1 rounded-full">
                                                 {resa.timeSlot}
                                             </span>
+                                            <button 
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    onToggleTimeSlotLock(resa.timeSlot);
+                                                }}
+                                                className="p-1 rounded-full hover:bg-gray-100 transition-colors"
+                                                title="Verrouiller ce créneau"
+                                            >
+                                                {isTimeSlotLocked(date, resa.timeSlot, lockedTimeSlots) ? (
+                                                    <Lock size={14} className="text-red-500" />
+                                                ) : (
+                                                    <LockOpen size={14} className="text-gray-400" />
+                                                )}
+                                            </button>
+                                        </div>
                                         </div>
                                         <div className="text-sm text-gray-600 space-y-1">
                                             <div className="flex items-center gap-2"><Phone size={14} /> {resa.phone}</div>
@@ -341,7 +388,44 @@ const ReservationModal = ({ date, reservations = [], onClose, onAddReservation, 
                                         >
                                             <option value="">Sélectionnez un créneau</option>
                                             {CALENDAR_CONFIG.timeSlots.map(slot => (
-                                                <option key={slot.value} value={slot.value}>{slot.label}</option>
+                                                <div 
+                                                    key={slot.value} 
+                                                    className={`p-3 rounded-lg border ${
+                                                        isTimeSlotLocked(date, slot.value, lockedTimeSlots) 
+                                                            ? 'border-red-200 bg-red-50 cursor-not-allowed' 
+                                                            : !formData.timeSlot || formData.timeSlot !== slot.value 
+                                                                ? 'border-gray-200 hover:border-pink-300' 
+                                                                : 'border-pink-500 bg-pink-50'
+                                                    } transition-colors ${!isTimeSlotLocked(date, slot.value, lockedTimeSlots) ? 'cursor-pointer' : ''}`}
+                                                    onClick={() => !isTimeSlotLocked(date, slot.value, lockedTimeSlots) && handleInputChange('timeSlot', slot.value)}
+                                                >
+                                                    <div className="flex items-center justify-between">
+                                                        <span className={`font-medium ${isTimeSlotLocked(date, slot.value, lockedTimeSlots) ? 'text-gray-400' : ''}`}>
+                                                            {slot.label}
+                                                            {isTimeSlotLocked(date, slot.value, lockedTimeSlots) && <span className="ml-2 text-xs text-red-500">(Verrouillé)</span>}
+                                                        </span>
+                                                        <div className="flex items-center gap-2">
+                                                            <button 
+                                                                type="button"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    onToggleTimeSlotLock(slot.value);
+                                                                }}
+                                                                className="p-1 rounded-full hover:bg-gray-100 transition-colors"
+                                                                title={isTimeSlotLocked(date, slot.value, lockedTimeSlots) ? 'Déverrouiller ce créneau' : 'Verrouiller ce créneau'}
+                                                            >
+                                                                {isTimeSlotLocked(date, slot.value, lockedTimeSlots) ? (
+                                                                    <LockOpen size={16} className="text-red-500" />
+                                                                ) : (
+                                                                    <Lock size={16} className="text-gray-400 hover:text-gray-600" />
+                                                                )}
+                                                            </button>
+                                                            {formData.timeSlot === slot.value && !isTimeSlotLocked(date, slot.value, lockedTimeSlots) && (
+                                                                <Check className="text-pink-600" size={18} />
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
                                             ))}
                                         </select>
                                         {errors.timeSlot && <p className="text-red-500 text-xs mt-1">{errors.timeSlot}</p>}

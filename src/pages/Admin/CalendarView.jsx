@@ -1,18 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, addMonths, subMonths, isSameDay } from 'date-fns';
+import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, addMonths, subMonths, isSameDay, isSameHour, parse } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import CalendarCell from './CalendarCell';
 import ReservationModal from './ReservationModal';
 import { CALENDAR_CONFIG } from './CalendarConfig';
-import { getApprovedReservations, getLockedDates, lockDate, unlockDate, deleteReservation } from '../../services/localStorageService';
+import { getApprovedReservations, getLockedTimeSlots, saveLockedTimeSlots, deleteReservation } from '../../services/localStorageService';
 import axios from 'axios';
 
 const CalendarView = () => {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [selectedDate, setSelectedDate] = useState(null);
     const [reservations, setReservations] = useState([]);
-    const [lockedDates, setLockedDates] = useState([]); // Array of date strings ISO
+    const [lockedTimeSlots, setLockedTimeSlots] = useState({}); // { 'YYYY-MM-DD': ['09:00', '11:00', ...] }
 
     // Load approved reservations and locked dates from localStorage on mount
     useEffect(() => {
@@ -21,8 +21,8 @@ const CalendarView = () => {
                 const approved = await getApprovedReservations();
                 setReservations(approved);
 
-                const locked = getLockedDates();
-                setLockedDates(locked);
+                const locked = getLockedTimeSlots();
+                setLockedTimeSlots(locked);
             } catch (error) {
                 console.error('Error loading calendar data:', error);
             }
@@ -48,7 +48,7 @@ const CalendarView = () => {
     // Handlers
     const handleDayClick = (day) => {
         const dateKey = day.toISOString();
-        const isLocked = lockedDates.includes(dateKey) || 
+        const isLocked = isDateLocked(day, lockedTimeSlots) || 
                         CALENDAR_CONFIG.closedDays.includes(day.getDay()) ||
                         day < new Date().setHours(0, 0, 0, 0);
         
@@ -75,16 +75,36 @@ const CalendarView = () => {
         }
     };
 
-    const handleLockDate = () => {
+    const handleToggleTimeSlotLock = (timeSlot) => {
         if (!selectedDate) return;
-        const dateKey = selectedDate.toISOString();
-        if (lockedDates.includes(dateKey)) {
-            const updated = unlockDate(dateKey);
-            setLockedDates(updated);
+        
+        const updated = toggleTimeSlotLock(selectedDate, timeSlot, lockedTimeSlots);
+        setLockedTimeSlots(updated);
+        saveLockedTimeSlots(updated);
+    };
+
+    const handleToggleAllTimeSlots = () => {
+        if (!selectedDate) return;
+        
+        const dateKey = format(selectedDate, 'yyyy-MM-dd');
+        const allTimeSlots = CALENDAR_CONFIG.timeSlots.map(slot => slot.value);
+        
+        let updated;
+        
+        // Si tous les créneaux sont déjà verrouillés, on les déverrouille tous
+        if (isDayFullyLocked(selectedDate, lockedTimeSlots)) {
+            updated = { ...lockedTimeSlots };
+            delete updated[dateKey];
         } else {
-            const updated = lockDate(dateKey);
-            setLockedDates(updated);
+            // Sinon on verrouille tous les créneaux
+            updated = {
+                ...lockedTimeSlots,
+                [dateKey]: [...allTimeSlots]
+            };
         }
+        
+        setLockedTimeSlots(updated);
+        saveLockedTimeSlots(updated);
     };
 
     return (
@@ -135,7 +155,7 @@ const CalendarView = () => {
                 <div className="grid grid-cols-7 border border-gray-200 bg-gray-200 gap-px rounded-b-lg overflow-hidden">
                     {calendarDays.map((day) => {
                         const dayReservations = reservations.filter(r => isSameDay(new Date(r.date), day));
-                        const isLocked = lockedDates.includes(day.toISOString()) || CALENDAR_CONFIG.closedDays.includes(day.getDay());
+                        const isLocked = isDateLocked(day, lockedTimeSlots) || CALENDAR_CONFIG.closedDays.includes(day.getDay());
 
                         return (
                             <CalendarCell
@@ -232,14 +252,14 @@ const CalendarView = () => {
 
             {/* Modal */}
             {selectedDate && (
-                <ReservationModal
-                    date={selectedDate}
-                    reservations={reservations.filter(r => isSameDay(new Date(r.date), selectedDate))}
-                    isLocked={lockedDates.includes(selectedDate.toISOString())}
+                <ReservationModal 
+                    isOpen={!!selectedDate} 
                     onClose={() => setSelectedDate(null)}
+                    selectedDate={selectedDate}
                     onAddReservation={handleAddReservation}
-                    onDeleteReservation={handleDeleteReservation}
-                    onLockDate={handleLockDate}
+                    lockedTimeSlots={lockedTimeSlots}
+                    onToggleTimeSlotLock={handleToggleTimeSlotLock}
+                    onToggleAllTimeSlots={handleToggleAllTimeSlots}
                 />
             )}
         </div>

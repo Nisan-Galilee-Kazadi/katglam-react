@@ -52,11 +52,11 @@ const CalendarCell = ({ date, monthStart, reservations = [], isClosed, onClick }
     }
 
     const handleClick = () => {
-        // Empêcher le clic sur les dates passées ou fermées
-        if (isClosed || isPast) {
-            return;
+        // Prevent clicking strictly on past dates or closed dates if desired
+        // Legacy admin "past" dates were not clickable or just info
+        if (!isClosed && !isPast) {
+            onClick(date);
         }
-        onClick(date);
     };
 
     return (
@@ -65,12 +65,9 @@ const CalendarCell = ({ date, monthStart, reservations = [], isClosed, onClick }
             className={`
                 relative min-h-[80px] p-2 border transition-all duration-200 
                 ${!isCurrentMonth ? 'opacity-40 bg-gray-50' : currentStyle}
-                ${!isClosed && !isPast && isCurrentMonth ? 
-                    'hover:scale-[1.02] hover:shadow-md cursor-pointer' : 
-                    'opacity-80 cursor-not-allowed'}
+                ${!isClosed && !isPast && isCurrentMonth ? 'hover:scale-[1.02] hover:shadow-md cursor-pointer' : ''}
                 flex flex-col
             `}
-            title={isClosed || isPast ? "Ce créneau n'est pas disponible" : "Cliquez pour sélectionner"}
         >
             {/* Header: Day Number + Indicator */}
             <div className="flex justify-between items-start">
